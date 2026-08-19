@@ -156,14 +156,14 @@ export function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20 selection:bg-emerald-100 selection:text-emerald-900">
       
-      {/* 1. CLEAN LIGHT HEADER */}
+      {/* 1. HEADER (NO ALL-CAPS) */}
       <header className="border-b border-slate-200 bg-white/95 sticky top-0 z-30 backdrop-blur-md shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="text-base font-bold text-slate-900 tracking-tight">Spiros Low-Carb 16:8</h1>
-              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
-                Active
+              <h1 className="text-base font-bold text-slate-900">Πλάνο Σπύρου</h1>
+              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[11px] font-semibold">
+                Διατροφή 16:8
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -172,7 +172,7 @@ export function App() {
           </div>
           
           <div className="text-right">
-            <span className="text-xs text-slate-500 block font-medium">Στόχος Βάρους</span>
+            <span className="text-xs text-slate-500 block font-medium">Στόχος βάρους</span>
             <span className="text-xs font-bold text-emerald-700">105kg ➔ 90kg</span>
           </div>
         </div>
@@ -180,20 +180,20 @@ export function App() {
 
       <main className="max-w-4xl mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
 
-        {/* 2. TIME-AWARE ADVISOR BOX (LIGHT THEME) */}
+        {/* 2. TIME ADVISOR BOX (NO ALL-CAPS) */}
         <div className="rounded-2xl p-4 sm:p-5 border border-emerald-300 bg-emerald-50/70 shadow-sm space-y-3">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-emerald-200/80">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
-                Κατάσταση Ώρας ({String(currentHour).padStart(2, '0')}:{String(currentMinute).padStart(2, '0')})
+              <span className="text-xs font-bold text-emerald-800 block">
+                Κατάσταση ώρας ({String(currentHour).padStart(2, '0')}:{String(currentMinute).padStart(2, '0')})
               </span>
               <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                {timePhase === 'morning_fast' && 'Φάση Νηστείας (Μηδέν Θερμίδες)'}
-                {timePhase === 'lunch_now' && 'Ώρα για Μεσημεριανό (1ο Γεύμα)'}
-                {timePhase === 'snack_now' && 'Ώρα για Απογευματινό Σνακ'}
-                {timePhase === 'dinner_now' && 'Ώρα για Βραδινό (Τελευταίο Γεύμα)'}
-                {timePhase === 'night_fast' && 'Η Κουζίνα Έκλεισε για Σήμερα'}
+                {timePhase === 'morning_fast' && 'Φάση νηστείας (Μηδέν θερμίδες)'}
+                {timePhase === 'lunch_now' && 'Ώρα για μεσημεριανό (1ο γεύμα)'}
+                {timePhase === 'snack_now' && 'Ώρα για απογευματινό σνακ'}
+                {timePhase === 'dinner_now' && 'Ώρα για βραδινό (Τελευταίο γεύμα)'}
+                {timePhase === 'night_fast' && 'Η κουζίνα έκλεισε για σήμερα'}
               </h2>
             </div>
 
@@ -208,21 +208,21 @@ export function App() {
           {timePhase === 'morning_fast' && (
             <div className="space-y-2.5 text-xs">
               <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1 shadow-sm">
-                <span className="font-bold text-sky-800 uppercase block text-[11px]">
+                <span className="font-bold text-sky-800 block text-xs">
                   Τι επιτρέπεται τώρα:
                 </span>
                 <p className="text-slate-800">
-                  500ml δροσερό νερό, σκέτος καφές (ελληνικός/espresso) ή πράσινο τσάι χωρίς ζάχαρη.
+                  500ml δροσερό νερό, σκέτος καφές (ελληνικός ή espresso) ή πράσινο τσάι χωρίς ζάχαρη.
                 </p>
-                <p className="text-emerald-700 font-medium text-[11px]">
+                <p className="text-emerald-700 font-medium text-xs">
                   Το σώμα καίει αποθηκευμένο λίπος και ενυδατώνονται οι δίσκοι της μέσης.
                 </p>
               </div>
 
               {lunchMeal && (
                 <div className="p-3 rounded-xl bg-white border border-emerald-300 space-y-1 shadow-sm">
-                  <span className="font-bold text-emerald-800 uppercase text-[11px] block">
-                    Στις 12:00 (Σημερινό Μεσημεριανό):
+                  <span className="font-bold text-emerald-800 text-xs block">
+                    Στις 12:00 (Σημερινό μεσημεριανό):
                   </span>
                   <h3 className="font-bold text-slate-900 text-sm">{lunchMeal.title}</h3>
                   <p className="text-slate-600">{lunchMeal.description}</p>
@@ -235,11 +235,11 @@ export function App() {
             <div className="space-y-2.5 text-xs">
               <div className="p-3.5 rounded-xl bg-white border border-emerald-300 shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-800 uppercase text-[11px]">
-                    Προτεινόμενο Μεσημεριανό:
+                  <span className="font-bold text-emerald-800 text-xs">
+                    Προτεινόμενο μεσημεριανό:
                   </span>
                   <span className="text-slate-600 font-semibold">
-                    {lunchMeal.protein_g}g πρωτεΐνη • {lunchMeal.carbs_g}g υδατ.
+                    {lunchMeal.protein_g}g πρωτεΐνη • {lunchMeal.carbs_g}g υδατάνθρακες
                   </span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900">{lunchMeal.title}</h3>
@@ -254,11 +254,11 @@ export function App() {
           {timePhase === 'snack_now' && (
             <div className="space-y-2.5 text-xs">
               <div className="p-3.5 rounded-xl bg-white border border-teal-300 shadow-sm space-y-1.5">
-                <span className="font-bold text-teal-800 uppercase text-[11px] block">
-                  Απογευματινό Σνακ (16:00):
+                <span className="font-bold text-teal-800 text-xs block">
+                  Απογευματινό σνακ (16:00):
                 </span>
                 <h3 className="text-base font-bold text-slate-900">
-                  {snackMeal ? snackMeal.title : '1 Στραγγιστό Γιαούρτι 2% με 12 Ωμά Αμύγδαλα'}
+                  {snackMeal ? snackMeal.title : '1 Στραγγιστό γιαούρτι 2% με 12 ωμά αμύγδαλα'}
                 </h3>
                 <p className="text-slate-600">
                   {snackMeal ? snackMeal.description : 'Προσφέρει κορεσμό και κρατά σταθερό το σάκχαρο.'}
@@ -267,7 +267,7 @@ export function App() {
 
               {dinnerMeal && (
                 <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm space-y-1">
-                  <span className="font-bold text-slate-500 uppercase text-[11px] block">
+                  <span className="font-bold text-slate-500 text-xs block">
                     Στις 20:00 (Βραδινό):
                   </span>
                   <h3 className="font-bold text-slate-800">{dinnerMeal.title}</h3>
@@ -281,11 +281,11 @@ export function App() {
             <div className="space-y-2.5 text-xs">
               <div className="p-3.5 rounded-xl bg-white border border-indigo-300 shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-indigo-900 uppercase text-[11px]">
-                    Βραδινό (Τελευταίο Γεύμα):
+                  <span className="font-bold text-indigo-900 text-xs">
+                    Βραδινό (Τελευταίο γεύμα):
                   </span>
                   <span className="text-slate-600 font-semibold">
-                    {dinnerMeal.protein_g}g πρωτεΐνη • {dinnerMeal.carbs_g}g υδατ.
+                    {dinnerMeal.protein_g}g πρωτεΐνη • {dinnerMeal.carbs_g}g υδατάνθρακες
                   </span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900">{dinnerMeal.title}</h3>
@@ -293,7 +293,7 @@ export function App() {
                 <div className="pt-2 border-t border-slate-100 text-slate-700">
                   <strong className="text-slate-900">Υλικά:</strong> {dinnerMeal.ingredients.join(', ')}
                 </div>
-                <p className="text-amber-800 font-semibold text-[11px] pt-1">
+                <p className="text-amber-800 font-semibold text-xs pt-1">
                   Υπενθύμιση: Μετά τις 20:30 πίνουμε μόνο νερό ή χαμομήλι.
                 </p>
               </div>
@@ -302,13 +302,13 @@ export function App() {
 
           {timePhase === 'night_fast' && (
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-1 text-xs">
-              <span className="font-bold text-amber-800 uppercase text-[11px] block">
+              <span className="font-bold text-amber-800 text-xs block">
                 Η κουζίνα έκλεισε:
               </span>
               <p className="text-slate-800">
                 Μόνο νερό ή ζεστό χαμομήλι χωρίς ζάχαρη μέχρι αύριο στις 12:00.
               </p>
-              <p className="text-slate-500 text-[11px]">
+              <p className="text-slate-500 text-xs">
                 Ξεκούραση για αποφόρτιση της σπονδυλικής στήλης.
               </p>
             </div>
@@ -316,61 +316,61 @@ export function App() {
 
         </div>
 
-        {/* 3. ΚΙΛΑ & ΣΤΑΤΙΣΤΙΚΑ (LIGHT CARDS) */}
+        {/* 3. ΚΙΛΑ & ΣΤΑΤΙΣΤΙΚΑ (NO ALL-CAPS) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           
           <div className="rounded-xl p-3.5 border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between text-xs text-slate-500 mb-0.5">
-              <span className="font-semibold uppercase tracking-wider text-slate-700">Βάρος Σήμερα</span>
+              <span className="font-semibold text-slate-700">Βάρος σήμερα</span>
               <span className="text-[11px]">Αρχικό: 105kg</span>
             </div>
             <div className="flex items-baseline space-x-1.5 my-0.5">
-              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{latestWeight.toFixed(1)}</span>
+              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{latestWeight.toFixed(1)}</span>
               <span className="text-xs font-semibold text-slate-500">kg</span>
               <span className="text-xs font-bold text-emerald-700 ml-auto">
                 {parseFloat(totalLost) > 0 ? `-${totalLost} kg` : '0 kg'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-100 flex justify-between">
+            <p className="text-xs text-slate-500 pt-1 border-t border-slate-100 flex justify-between">
               <span>Στόχος: <strong className="text-slate-900">90 kg</strong></span>
               <span className="text-amber-700 font-semibold">{remaining} kg μένουν</span>
             </p>
           </div>
 
           <div className="rounded-xl p-3.5 border border-slate-200 bg-white shadow-sm">
-            <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">
-              Αποφόρτιση Μέσης
+            <div className="text-xs text-slate-500 font-semibold mb-0.5">
+              Αποφόρτιση μέσης
             </div>
             <div className="flex items-baseline space-x-1.5 my-0.5">
-              <span className="text-2xl sm:text-3xl font-extrabold text-indigo-700 tracking-tight">-{spineRelief}</span>
+              <span className="text-2xl sm:text-3xl font-extrabold text-indigo-700">-{spineRelief}</span>
               <span className="text-xs font-semibold text-slate-500">kg πίεσης</span>
             </div>
-            <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+            <p className="text-xs text-slate-500 pt-1 border-t border-slate-100">
               1kg απώλεια = 4kg λιγότερη πίεση στη μέση
             </p>
           </div>
 
           <div className="rounded-xl p-3.5 border border-slate-200 bg-white shadow-sm">
-            <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">
-              Ωράριο 16:8 & Νερό
+            <div className="text-xs text-slate-500 font-semibold mb-0.5">
+              Ωράριο 16:8 & νερό
             </div>
             <div className="my-0.5">
               <p className="text-xs sm:text-sm font-bold text-slate-900">12:00 - 20:00 (Φαγητό)</p>
-              <p className="text-[11px] text-slate-500">20:00 - 12:00 (Νηστεία)</p>
+              <p className="text-xs text-slate-500">20:00 - 12:00 (Νηστεία)</p>
             </div>
-            <p className="text-[11px] text-emerald-700 font-semibold pt-1 border-t border-slate-100">
-              Στόχος νερού: 3.0 Liters
+            <p className="text-xs text-emerald-700 font-semibold pt-1 border-t border-slate-100">
+              Στόχος νερού: 3.0 λίτρα
             </p>
           </div>
 
         </div>
 
-        {/* 4. ΜΕΝΟΥ ΗΜΕΡΑΣ (LIGHT CARDS) */}
+        {/* 4. ΜΕΝΟΥ ΗΜΕΡΑΣ (NO ALL-CAPS) */}
         <div className="rounded-xl sm:rounded-2xl p-4 border border-slate-200 bg-white shadow-sm space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
             <div>
               <h2 className="text-sm sm:text-base font-bold text-slate-900">
-                {isSelectedDayToday ? `Μενού Σήμερα (${selectedDay})` : `Μενού για ${selectedDay}`}
+                {isSelectedDayToday ? `Μενού σήμερα (${selectedDay})` : `Μενού για ${selectedDay}`}
               </h2>
             </div>
 
@@ -383,9 +383,9 @@ export function App() {
                     setSelectedDay(day);
                     setShowPastMeals(false);
                   }}
-                  className={`px-2.5 py-1 rounded text-xs font-bold transition shrink-0 ${
+                  className={`px-2.5 py-1 rounded text-xs font-semibold transition shrink-0 ${
                     selectedDay === day 
-                      ? 'bg-emerald-600 text-white shadow-sm' 
+                      ? 'bg-emerald-600 text-white font-bold shadow-sm' 
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -395,7 +395,7 @@ export function App() {
             </div>
           </div>
 
-          {/* MEAL LIST (LIGHT) */}
+          {/* MEAL LIST */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
             
             {/* 12:00 Μεσημεριανό */}
@@ -407,12 +407,12 @@ export function App() {
                     : 'bg-slate-50/60 border-slate-200'
                 }`}>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase text-amber-800">
+                    <span className="text-xs font-bold text-amber-800">
                       12:00 Μεσημεριανό
                     </span>
                     {isSelectedDayToday && currentHour >= 12 && currentHour < 16 && (
                       <span className="px-1.5 py-0.5 rounded bg-emerald-200 text-emerald-900 font-bold text-[10px]">
-                        ΤΩΡΑ
+                        Τώρα
                       </span>
                     )}
                     {isLunchPast && isSelectedDayToday && (
@@ -422,9 +422,9 @@ export function App() {
                     )}
                   </div>
                   <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{lunchMeal.title}</h4>
-                  <p className="text-slate-600 leading-relaxed text-[11px]">{lunchMeal.description}</p>
-                  <p className="text-[11px] text-emerald-800 font-semibold pt-1">
-                    {lunchMeal.protein_g}g πρωτεΐνη • {lunchMeal.carbs_g}g υδατ. • {lunchMeal.calories} kcal
+                  <p className="text-slate-600 leading-relaxed text-xs">{lunchMeal.description}</p>
+                  <p className="text-xs text-emerald-800 font-semibold pt-1">
+                    {lunchMeal.protein_g}g πρωτεΐνη • {lunchMeal.carbs_g}g υδατάνθρακες • {lunchMeal.calories} kcal
                   </p>
                 </div>
               )
@@ -439,12 +439,12 @@ export function App() {
                     : 'bg-slate-50/60 border-slate-200'
                 }`}>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase text-teal-800">
+                    <span className="text-xs font-bold text-teal-800">
                       16:00 Σνακ
                     </span>
                     {isSelectedDayToday && currentHour >= 16 && currentHour < 20 && (
                       <span className="px-1.5 py-0.5 rounded bg-teal-200 text-teal-900 font-bold text-[10px]">
-                        ΤΩΡΑ
+                        Τώρα
                       </span>
                     )}
                     {isSnackPast && isSelectedDayToday && (
@@ -454,8 +454,8 @@ export function App() {
                     )}
                   </div>
                   <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{snackMeal.title}</h4>
-                  <p className="text-slate-600 leading-relaxed text-[11px]">{snackMeal.description}</p>
-                  <p className="text-[11px] text-teal-800 font-semibold pt-1">
+                  <p className="text-slate-600 leading-relaxed text-xs">{snackMeal.description}</p>
+                  <p className="text-xs text-teal-800 font-semibold pt-1">
                     {snackMeal.protein_g}g πρωτεΐνη • {snackMeal.calories} kcal
                   </p>
                 </div>
@@ -471,12 +471,12 @@ export function App() {
                     : 'bg-slate-50/60 border-slate-200'
                 }`}>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase text-indigo-900">
+                    <span className="text-xs font-bold text-indigo-900">
                       20:00 Βραδινό
                     </span>
                     {isSelectedDayToday && currentHour >= 20 && currentHour < 22 && (
                       <span className="px-1.5 py-0.5 rounded bg-indigo-200 text-indigo-900 font-bold text-[10px]">
-                        ΤΩΡΑ
+                        Τώρα
                       </span>
                     )}
                     {isDinnerPast && isSelectedDayToday && (
@@ -486,9 +486,9 @@ export function App() {
                     )}
                   </div>
                   <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{dinnerMeal.title}</h4>
-                  <p className="text-slate-600 leading-relaxed text-[11px]">{dinnerMeal.description}</p>
-                  <p className="text-[11px] text-indigo-800 font-semibold pt-1">
-                    {dinnerMeal.protein_g}g πρωτεΐνη • {dinnerMeal.carbs_g}g υδατ. • {dinnerMeal.calories} kcal
+                  <p className="text-slate-600 leading-relaxed text-xs">{dinnerMeal.description}</p>
+                  <p className="text-xs text-indigo-800 font-semibold pt-1">
+                    {dinnerMeal.protein_g}g πρωτεΐνη • {dinnerMeal.carbs_g}g υδατάνθρακες • {dinnerMeal.calories} kcal
                   </p>
                 </div>
               )
@@ -498,7 +498,7 @@ export function App() {
 
           {/* Toggle */}
           {isSelectedDayToday && (isLunchPast || isSnackPast || isDinnerPast) && (
-            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-500 border-t border-slate-100">
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-500 border-t border-slate-100">
               <span>
                 {isDinnerPast 
                   ? 'Τα γεύματα της ημέρας ολοκληρώθηκαν.' 
@@ -516,7 +516,7 @@ export function App() {
           )}
         </div>
 
-        {/* 5. ΑΝΑΖΗΤΗΣΗ ΤΡΟΦΗΣ (LIGHT) */}
+        {/* 5. ΑΝΑΖΗΤΗΣΗ ΤΡΟΦΗΣ (NO ALL-CAPS) */}
         <div className="rounded-xl p-3 border border-slate-200 bg-white shadow-sm">
           <input
             type="text"
@@ -527,53 +527,53 @@ export function App() {
           />
         </div>
 
-        {/* 6. ΟΙ 2 ΣΤΗΛΕΣ: ΤΙ ΤΡΩΣ & ΤΙ ΔΕΝ ΤΡΩΣ (LIGHT) */}
+        {/* 6. ΟΙ 2 ΣΤΗΛΕΣ: ΤΙ ΤΡΩΣ & ΤΙ ΔΕΝ ΤΡΩΣ (NO ALL-CAPS) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
-          {/* ΣΤΗΛΗ 1: ΤΙ ΤΡΩΣ (ΝΑΙ) */}
+          {/* Στήλη 1: Τι τρως */}
           <div className="rounded-xl p-4 border border-emerald-200 bg-emerald-50/40 space-y-3">
             <div className="border-b border-emerald-200 pb-2">
-              <h2 className="text-sm sm:text-base font-bold text-emerald-800 uppercase tracking-wide">
-                Τι Τρως (Επιτρέπονται)
+              <h2 className="text-sm sm:text-base font-bold text-emerald-800">
+                Τι τρως (Επιτρέπονται)
               </h2>
-              <p className="text-[11px] text-slate-500">Καθαρή πρωτεΐνη, λαχανικά, καλά λιπαρά</p>
+              <p className="text-xs text-slate-500">Καθαρή πρωτεΐνη, λαχανικά, καλά λιπαρά</p>
             </div>
 
             <div className="space-y-2 text-xs">
               <div className="p-2.5 rounded-lg bg-white border border-emerald-100 shadow-sm">
                 <span className="font-bold text-slate-900 block mb-0.5">Πρωτεΐνες:</span>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  Κοτόπουλο, Γαλοπούλα, Σολομός, Σαρδέλες, Τσιπούρα, Τόνος, Μοσχάρι άπαχο, Αυγά, Θαλασσινά.
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  Κοτόπουλο, γαλοπούλα, σολομός, σαρδέλες, τσιπούρα, τόνος, μοσχάρι άπαχο, αυγά, θαλασσινά.
                 </p>
               </div>
 
               <div className="p-2.5 rounded-lg bg-white border border-emerald-100 shadow-sm">
                 <span className="font-bold text-slate-900 block mb-0.5">Λαχανικά (Αντιφλεγμονώδη):</span>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  Μπρόκολο, Κουνουπίδι, Σπανάκι, Μαρούλι, Ρόκα, Λάχανο, Κολοκυθάκια, Μανιτάρια, Αγγούρι, Βραστά χόρτα.
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  Μπρόκολο, κουνουπίδι, σπανάκι, μαρούλι, ρόκα, λάχανο, κολοκυθάκια, μανιτάρια, αγγούρι, βραστά χόρτα.
                 </p>
               </div>
 
               <div className="p-2.5 rounded-lg bg-white border border-emerald-100 shadow-sm">
-                <span className="font-bold text-slate-900 block mb-0.5">Καλά Λιπαρά & Γαλακτοκομικά:</span>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  Έξτρα Παρθένο Ελαιόλαδο, Αβοκάντο, Στραγγιστό Γιαούρτι 2%, Αμύγδαλα & Καρύδια.
+                <span className="font-bold text-slate-900 block mb-0.5">Καλά λιπαρά & γαλακτοκομικά:</span>
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  Έξτρα παρθένο ελαιόλαδο, αβοκάντο, στραγγιστό γιαούρτι 2%, ωμά αμύγδαλα και καρύδια.
                 </p>
               </div>
 
               <div className="p-2.5 rounded-lg bg-white border border-emerald-100 shadow-sm">
                 <span className="font-bold text-slate-900 block mb-0.5">Ροφήματα:</span>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  Νερό (3L), Σκέτος Καφές, Πράσινο Τσάι, Σόδα.
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  Νερό (3 λίτρα), σκέτος καφές, πράσινο τσάι, σόδα.
                 </p>
               </div>
             </div>
 
             {searchFood && allowedFoods.length > 0 && (
               <div className="pt-2 border-t border-emerald-200 space-y-1.5">
-                <span className="text-[11px] font-bold text-emerald-800">Επιτρεπόμενα:</span>
+                <span className="text-xs font-bold text-emerald-800">Επιτρεπόμενα:</span>
                 {allowedFoods.map(f => (
-                  <div key={f.id} className="p-2 rounded bg-white border border-emerald-300 text-[11px] shadow-sm">
+                  <div key={f.id} className="p-2 rounded bg-white border border-emerald-300 text-xs shadow-sm">
                     <strong className="text-slate-900">{f.name}:</strong> <span className="text-emerald-800">{f.benefits_or_harms}</span>
                   </div>
                 ))}
@@ -581,50 +581,50 @@ export function App() {
             )}
           </div>
 
-          {/* ΣΤΗΛΗ 2: ΤΙ ΔΕΝ ΤΡΩΣ (ΟΧΙ) */}
+          {/* Στήλη 2: Τι κόβεις */}
           <div className="rounded-xl p-4 border border-rose-200 bg-rose-50/40 space-y-3">
             <div className="border-b border-rose-200 pb-2">
-              <h2 className="text-sm sm:text-base font-bold text-rose-800 uppercase tracking-wide">
-                Τι Κόβεις (Απαγορεύονται)
+              <h2 className="text-sm sm:text-base font-bold text-rose-800">
+                Τι κόβεις (Απαγορεύονται)
               </h2>
-              <p className="text-[11px] text-slate-500">Μπλοκάρουν το λίπος & προκαλούν φλεγμονή στη μέση</p>
+              <p className="text-xs text-slate-500">Μπλοκάρουν το λίπος και φέρνουν φλεγμονή στη μέση</p>
             </div>
 
             <div className="space-y-2 text-xs">
               <div className="p-2.5 rounded-lg bg-white border border-rose-100 shadow-sm">
-                <span className="font-bold text-rose-900 block mb-0.5">Ψωμιά & Ζυμαρικά:</span>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  Ψωμί (λευκό, ολικής, φρυγανιές, παξιμάδια, πίτες), Μακαρόνια, Ρύζι, Κριθαράκι.
+                <span className="font-bold text-rose-900 block mb-0.5">Ψωμιά & ζυμαρικά:</span>
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  Ψωμί (λευκό, ολικής, φρυγανιές, παξιμάδια, πίτες), μακαρόνια, ρύζι, κριθαράκι.
                 </p>
               </div>
 
               <div className="p-2.5 rounded-lg bg-white border border-rose-100 shadow-sm">
-                <span className="font-bold text-rose-900 block mb-0.5">Πατάτες & Αμυλούχα:</span>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  Πατάτες (τηγανητές, ψητές, πουρές), Καλαμπόκι, Αρακάς.
+                <span className="font-bold text-rose-900 block mb-0.5">Πατάτες & αμυλούχα:</span>
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  Πατάτες (τηγανητές, ψητές, πουρές), καλαμπόκι, αρακάς.
                 </p>
               </div>
 
               <div className="p-2.5 rounded-lg bg-white border border-rose-100 shadow-sm">
-                <span className="font-bold text-rose-900 block mb-0.5">Ζάχαρη & Γλυκά:</span>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  Σοκολάτες, Πάστες, Παγωτά, Μπισκότα, Μέλι, Μαρμελάδες, Δημητριακά.
+                <span className="font-bold text-rose-900 block mb-0.5">Ζάχαρη & γλυκά:</span>
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  Σοκολάτες, πάστες, παγωτά, μπισκότα, μέλι, μαρμελάδες, δημητριακά πρωινού.
                 </p>
               </div>
 
               <div className="p-2.5 rounded-lg bg-white border border-rose-100 shadow-sm">
-                <span className="font-bold text-rose-900 block mb-0.5">Αναψυκτικά & Αλκοόλ:</span>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  Αναψυκτικά με ζάχαρη, Χυμοί, Μπύρα, Γλυκά ποτά.
+                <span className="font-bold text-rose-900 block mb-0.5">Αναψυκτικά & αλκοόλ:</span>
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  Αναψυκτικά με ζάχαρη, έτοιμοι χυμοί, μπύρα, γλυκά ποτά.
                 </p>
               </div>
             </div>
 
             {searchFood && forbiddenFoods.length > 0 && (
               <div className="pt-2 border-t border-rose-200 space-y-1.5">
-                <span className="text-[11px] font-bold text-rose-800">Απαγορευμένα:</span>
+                <span className="text-xs font-bold text-rose-800">Απαγορευμένα:</span>
                 {forbiddenFoods.map(f => (
-                  <div key={f.id} className="p-2 rounded bg-white border border-rose-300 text-[11px] shadow-sm">
+                  <div key={f.id} className="p-2 rounded bg-white border border-rose-300 text-xs shadow-sm">
                     <strong className="text-slate-900">{f.name}:</strong> <span className="text-rose-800">{f.benefits_or_harms}</span>
                   </div>
                 ))}
@@ -634,20 +634,20 @@ export function App() {
 
         </div>
 
-        {/* 7. ΚΑΝΟΝΕΣ ΓΙΑ ΤΗ ΜΕΣΗ (LIGHT) */}
+        {/* 7. ΚΑΝΟΝΕΣ ΓΙΑ ΤΗ ΜΕΣΗ (NO ALL-CAPS) */}
         <div className="p-3.5 sm:p-4 rounded-xl border border-indigo-200 bg-indigo-50/70 text-xs">
           <span className="text-indigo-950 font-bold text-xs sm:text-sm block mb-1">
-            Οδηγία για τη Μέση (Στένωση Σπονδυλικού Σωλήνα):
+            Οδηγία για τη μέση (Στένωση σπονδυλικού σωλήνα):
           </span>
-          <p className="text-slate-700 leading-relaxed text-[11px] sm:text-xs">
-            <strong>Απαγορεύεται το τρέξιμο & οι κραδασμοί.</strong> Επιτρέπεται μόνο <strong>στατικό ποδήλατο με πλάτη</strong>, <strong>περπάτημα σε ίσιωμα (15-20')</strong> και <strong>κολύμβηση</strong>. Πίνετε <strong>3 λίτρα νερό</strong> την ημέρα.
+          <p className="text-slate-700 leading-relaxed text-xs">
+            <strong>Απαγορεύεται το τρέξιμο και οι κραδασμοί.</strong> Επιτρέπεται μόνο <strong>στατικό ποδήλατο με πλάτη</strong>, <strong>περπάτημα σε ίσιωμα (15-20 λεπτά)</strong> και <strong>κολύμβηση</strong>. Πίνετε <strong>3 λίτρα νερό</strong> την ημέρα.
           </p>
         </div>
 
-        {/* 8. ΚΑΤΑΧΩΡΗΣΗ ΚΙΛΩΝ (LIGHT) */}
+        {/* 8. ΚΑΤΑΧΩΡΗΣΗ ΚΙΛΩΝ (NO ALL-CAPS) */}
         <div className="rounded-xl p-4 border border-slate-200 bg-white shadow-sm">
           <h3 className="text-xs sm:text-sm font-bold text-slate-900 mb-2.5">
-            Καταχώρηση Σημερινών Κιλών
+            Καταχώρηση σημερινών κιλών
           </h3>
           
           <form onSubmit={handleSaveWeight} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -657,7 +657,7 @@ export function App() {
               value={todayWeight}
               onChange={(e) => setTodayWeight(e.target.value)}
               placeholder="π.χ. 103.2"
-              className="bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-bold focus:outline-none focus:border-emerald-600 focus:bg-white w-full sm:w-36 text-center sm:text-left"
+              className="bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-medium focus:outline-none focus:border-emerald-600 focus:bg-white w-full sm:w-36 text-center sm:text-left"
             />
             <button
               type="submit"
@@ -670,9 +670,9 @@ export function App() {
 
           {weightLogs.length > 0 && (
             <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 text-xs">
-              <span className="text-slate-500 font-semibold self-center mr-1 text-[11px]">Ιστορικό:</span>
+              <span className="text-slate-500 font-medium self-center mr-1 text-xs">Ιστορικό:</span>
               {[...weightLogs].reverse().slice(0, 5).map((log) => (
-                <div key={log.id} className="flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 text-[11px]">
+                <div key={log.id} className="flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 text-xs">
                   <span>{log.date.substring(5)}:</span>
                   <strong className="text-emerald-800">{log.weight}kg</strong>
                   <button
