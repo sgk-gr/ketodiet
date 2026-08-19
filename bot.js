@@ -99,7 +99,7 @@ async function getTodayWater() {
 async function addTodayWater(mlToAdd) {
   const today = new Date().toISOString().split('T')[0];
   const current = await getTodayWater();
-  const newWater = Math.min(6000, current + mlToAdd);
+  const newWater = Math.max(0, Math.min(6000, current + mlToAdd));
   
   try {
     await supabase.from('spiros_daily_logs').upsert({
@@ -113,6 +113,22 @@ async function addTodayWater(mlToAdd) {
     console.error('Supabase water save error:', err.message);
   }
   return newWater;
+}
+
+async function resetTodayWater() {
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    await supabase.from('spiros_daily_logs').upsert({
+      id: 'daily-' + today,
+      date: today,
+      water_ml: 0,
+      fasting_hours: 16,
+      lumbar_feeling: 'good'
+    }, { onConflict: 'date' });
+  } catch (err) {
+    console.error('Supabase water reset error:', err.message);
+  }
+  return 0;
 }
 
 async function saveWeight(weightKg) {
@@ -209,16 +225,25 @@ async function handleIncomingMessage(msg) {
     return;
   }
 
-  // 2. Check for Water logging
+  // 2. Reset or Subtract water
+  if (lower.includes('μηδενισ') || lower.includes('σβησε νερο') || lower.includes('σβήσε νερό') || lower.includes('reset') || lower === 'σβησε' || lower === 'σβήσε') {
+    await resetTodayWater();
+    await sendMessage(chatId, `<b>Το νερό της ημέρας μηδενίστηκε (0.00 / 3.00 L)!</b>\nΈτοιμο για νέα καταγραφή.`);
+    return;
+  }
+
+  // 3. Check for Water logging or subtraction
+  const isNegative = lower.includes('-') || lower.includes('αφαιρεσε') || lower.includes('αφαίρεσε');
   const waterMl = parseWaterAmount(text);
   if (waterMl) {
-    const newTotal = await addTodayWater(waterMl);
+    const change = isNegative ? -waterMl : waterMl;
+    const newTotal = await addTodayWater(change);
     const bar = renderProgressBar(newTotal, 3000);
-    const addedL = (waterMl / 1000).toFixed(2);
+    const changeL = (waterMl / 1000).toFixed(2);
     const totalL = (newTotal / 1000).toFixed(2);
 
     await sendMessage(chatId,
-      `<b>Καταγράφηκε!</b> +${addedL}L νερό.\n\n` +
+      `<b>${isNegative ? 'Αφαιρέθηκε' : 'Καταγράφηκε'}!</b> ${isNegative ? '-' : '+'}${changeL}L νερό.\n\n` +
       `<b>Σύνολο σήμερα:</b> ${totalL} / 3.00 L\n` +
       `<b>Πρόοδος:</b> ${bar}\n\n` +
       `<i>Οι μεσοσπονδύλιοι δίσκοι της μέσης ενυδατώνονται και αποφορτίζονται!</i>`

@@ -121,6 +121,39 @@ export function App() {
     });
   };
 
+  // Subtract water (e.g. -250ml)
+  const handleSubtractWater = async (amount: number) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newTotal = Math.max(0, waterMl - amount);
+    setWaterMl(newTotal);
+    await DataService.saveDailyLog({
+      id: 'daily-' + todayStr,
+      date: todayStr,
+      water_ml: newTotal,
+      fasting_hours: 16,
+      exercise_minutes: 20,
+      exercise_type: 'recumbent_bike',
+      lumbar_feeling: 'good',
+      completed_habits: [],
+    });
+  };
+
+  // Reset water to 0
+  const handleResetWater = async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    setWaterMl(0);
+    await DataService.saveDailyLog({
+      id: 'daily-' + todayStr,
+      date: todayStr,
+      water_ml: 0,
+      fasting_hours: 16,
+      exercise_minutes: 20,
+      exercise_type: 'recumbent_bike',
+      lumbar_feeling: 'good',
+      completed_habits: [],
+    });
+  };
+
   // Add weight
   const handleSaveWeight = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -419,19 +452,35 @@ export function App() {
                 <span className="text-neutral-400 font-medium ml-1">/ 3.00 L</span>
               </div>
               
-              {/* Quick Add Buttons */}
-              <div className="flex space-x-1.5">
+              {/* Quick Adjust Buttons */}
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={() => handleAddWater(250)}
-                  className="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-neutral-200 border border-neutral-700 transition"
+                  className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-neutral-200 border border-neutral-700 transition"
+                  title="Προσθήκη 250ml"
                 >
                   +250ml
                 </button>
                 <button
                   onClick={() => handleAddWater(500)}
-                  className="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-sky-300 border border-neutral-700 transition"
+                  className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-sky-300 border border-neutral-700 transition"
+                  title="Προσθήκη 500ml"
                 >
                   +500ml
+                </button>
+                <button
+                  onClick={() => handleSubtractWater(250)}
+                  className="px-2 py-1 rounded bg-neutral-900 hover:bg-neutral-800 text-xs font-bold text-neutral-400 border border-neutral-800 transition"
+                  title="Αφαίρεση 250ml"
+                >
+                  -250ml
+                </button>
+                <button
+                  onClick={handleResetWater}
+                  className="px-2 py-1 rounded bg-neutral-900 hover:bg-red-950 text-xs font-bold text-red-400 border border-neutral-800 hover:border-red-900 transition"
+                  title="Μηδενισμός νερού ημέρας"
+                >
+                  Μηδενισμός
                 </button>
               </div>
             </div>
