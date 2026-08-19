@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DataService } from './lib/supabase';
+import { DataService, supabase } from './lib/supabase';
 import { WeightLog, FoodItem, MealRecipe } from './types';
 import { INITIAL_FOODS, INITIAL_WEIGHT_LOGS, INITIAL_MEAL_PLAN } from './data/initialData';
 
@@ -23,6 +23,19 @@ const ORDERED_DAYS: MealRecipe['day'][] = [
   'Κυριακή',
 ];
 
+// Helper: Calculate ETA to reach 90kg (at 0.75kg/week)
+function calculateGoalETA(currentWeight: number): { dateStr: string; weeks: number } {
+  const remaining = Math.max(0, currentWeight - 90.0);
+  if (remaining === 0) return { dateStr: 'Στόχος επιτεύχθηκε!', weeks: 0 };
+  const weeksNeeded = Math.ceil(remaining / 0.75);
+  const targetDate = new Date();
+  targetDate.setDate(targetDate.getDate() + weeksNeeded * 7);
+  
+  const months = ['Ιανουαρίου', 'Φεβρουαρίου', 'Μαρτίου', 'Απριλίου', 'Μαΐου', 'Ιουνίου', 'Ιουλίου', 'Αυγούστου', 'Σεπτεμβρίου', 'Οκτωβρίου', 'Νοεμβρίου', 'Δεκεμβρίου'];
+  const dateStr = `${targetDate.getDate()} ${months[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
+  return { dateStr, weeks: weeksNeeded };
+}
+
 export function App() {
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [foods, setFoods] = useState<FoodItem[]>(INITIAL_FOODS);
@@ -31,6 +44,7 @@ export function App() {
   const [todayWeight, setTodayWeight] = useState<string>('');
   const [isSavingWeight, setIsSavingWeight] = useState<boolean>(false);
   const [showPastMeals, setShowPastMeals] = useState<boolean>(false);
+  const [waterMl, setWaterMl] = useState<number>(0);
 
   // Live Time Intelligence
   const [now, setNow] = useState<Date>(new Date());
@@ -48,21 +62,31 @@ export function App() {
   // Selected Day for Menu (Defaults to TODAY)
   const [selectedDay, setSelectedDay] = useState<MealRecipe['day']>(currentDayName);
 
-  // Load weights from Supabase / Local
-  useEffect(() => {
-    async function load() {
-      try {
-        const weights = await DataService.getWeightLogs();
-        setWeightLogs(weights.length > 0 ? weights : INITIAL_WEIGHT_LOGS);
-        const f = await DataService.getFoods();
-        if (f.length > 0) setFoods(f);
-        const m = await DataService.getMeals();
-        if (m.length > 0) setMeals(m);
-      } catch (err) {
-        console.error(err);
+  // Initial Load + Auto Sync every 4 seconds (for instant Telegram bot updates)
+  const loadData = async () => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const weights = await DataService.getWeightLogs();
+      if (weights.length > 0) setWeightLogs(weights);
+      
+      const daily = await DataService.getDailyLog(todayStr);
+      if (daily && typeof daily.water_ml === 'number') {
+        setWaterMl(daily.water_ml);
       }
+      
+      const f = await DataService.getFoods();
+      if (f.length > 0) setFoods(f);
+      const m = await DataService.getMeals();
+      if (m.length > 0) setMeals(m);
+    } catch (err) {
+      console.error(err);
     }
-    load();
+  };
+
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const latestWeight = weightLogs.length > 0 
@@ -72,6 +96,30 @@ export function App() {
   const totalLost = (105.0 - latestWeight).toFixed(1);
   const remaining = (latestWeight - 90.0).toFixed(1);
   const spineRelief = (Math.max(0, parseFloat(totalLost)) * 4).toFixed(1);
+
+  // Weight progress bar (from 105 down to 90 = 15kg span)
+  const weightProgressPercent = Math.min(100, Math.max(0, Math.round((Math.max(0, parseFloat(totalLost)) / 15.0) * 100)));
+  const eta = calculateGoalETA(latestWeight);
+
+  // Water progress bar (goal: 3000 ml)
+  const waterProgressPercent = Math.min(100, Math.max(0, Math.round((waterMl / 3000) * 100)));
+
+  // Add water directly from UI
+  const handleAddWater = async (amount: number) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newTotal = Math.min(6000, waterMl + amount);
+    setWaterMl(newTotal);
+    await DataService.saveDailyLog({
+      id: 'daily-' + todayStr,
+      date: todayStr,
+      water_ml: newTotal,
+      fasting_hours: 16,
+      exercise_minutes: 20,
+      exercise_type: 'recumbent_bike',
+      lumbar_feeling: 'good',
+      completed_habits: [],
+    });
+  };
 
   // Add weight
   const handleSaveWeight = async (e: React.FormEvent) => {
@@ -84,7 +132,7 @@ export function App() {
       date: todayStr,
       weight: w,
       pain_level: 4,
-      notes: 'Καταγραφή από αρχική σελίδα',
+      notes: 'Καταγραφή από εφαρμογή',
     });
     setWeightLogs(prev => [...prev.filter(x => x.id !== newLog.id), newLog].sort((a, b) => a.date.localeCompare(b.date)));
     setTodayWeight('');
@@ -156,14 +204,14 @@ export function App() {
   return (
     <div className="min-h-screen bg-black text-white font-sans pb-20 selection:bg-emerald-500/30 selection:text-emerald-300">
       
-      {/* 1. HEADER (PURE BLACK, NO BLUE) */}
+      {/* 1. HEADER (PURE BLACK) */}
       <header className="border-b border-neutral-800 bg-black/95 sticky top-0 z-30 backdrop-blur-md">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2">
               <h1 className="text-base font-bold text-white tracking-tight">Πλάνο Σπύρου</h1>
               <span className="px-2 py-0.5 rounded bg-neutral-800 text-emerald-400 border border-neutral-700 text-[11px] font-semibold">
-                Διατροφή 16:8
+                Telegram Sync Active
               </span>
             </div>
             <p className="text-xs text-neutral-400 mt-0.5">
@@ -180,7 +228,7 @@ export function App() {
 
       <main className="max-w-4xl mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
 
-        {/* 2. TIME ADVISOR BOX (PURE PITCH BLACK & NEUTRAL BORDERS) */}
+        {/* 2. TIME ADVISOR BOX */}
         <div className="rounded-2xl p-4 sm:p-5 border border-neutral-800 bg-[#0d0d0d] shadow-2xl space-y-3">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-neutral-800">
@@ -316,56 +364,87 @@ export function App() {
 
         </div>
 
-        {/* 3. ΚΙΛΑ & ΣΤΑΤΙΣΤΙΚΑ (PURE BLACK CARDS) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* 3. PROGRESS BARS: ΒΑΡΟΣ + ΕΚΤΙΜΩΜΕΝΗ ΗΜΕΡΟΜΗΝΙΑ & ΝΕΡΟ TELEGRAM SYNC */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
-          <div className="rounded-xl p-3.5 border border-neutral-800 bg-[#0d0d0d]">
-            <div className="flex items-center justify-between text-xs text-neutral-400 mb-0.5">
-              <span className="font-semibold text-neutral-300">Βάρος σήμερα</span>
-              <span className="text-[11px] text-neutral-500">Αρχικό: 105kg</span>
+          {/* Progress Bar 1: Βάρος & Εκτίμηση Στόχου */}
+          <div className="rounded-xl p-4 border border-neutral-800 bg-[#0d0d0d] space-y-3">
+            <div className="flex items-center justify-between text-xs text-neutral-400">
+              <span className="font-semibold text-neutral-300">Πρόοδος βάρους (105kg ➔ 90kg)</span>
+              <span className="font-bold text-emerald-400">{weightProgressPercent}%</span>
             </div>
-            <div className="flex items-baseline space-x-1.5 my-0.5">
-              <span className="text-2xl sm:text-3xl font-extrabold text-white">{latestWeight.toFixed(1)}</span>
-              <span className="text-xs font-semibold text-neutral-400">kg</span>
-              <span className="text-xs font-bold text-emerald-400 ml-auto">
-                {parseFloat(totalLost) > 0 ? `-${totalLost} kg` : '0 kg'}
-              </span>
+            
+            {/* Visual Bar */}
+            <div className="w-full bg-black rounded-full h-3 overflow-hidden border border-neutral-800">
+              <div
+                className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(5, weightProgressPercent)}%` }}
+              />
             </div>
-            <p className="text-xs text-neutral-400 pt-1 border-t border-neutral-800 flex justify-between">
-              <span>Στόχος: <strong className="text-white">90 kg</strong></span>
-              <span className="text-amber-400 font-semibold">{remaining} kg μένουν</span>
-            </p>
+
+            <div className="flex items-baseline justify-between text-xs pt-1">
+              <div>
+                <span className="text-2xl font-extrabold text-white">{latestWeight.toFixed(1)}</span>
+                <span className="text-neutral-400 font-medium ml-1">kg</span>
+                <span className="text-xs font-bold text-emerald-400 ml-2">(-{totalLost}kg)</span>
+              </div>
+              <span className="text-amber-400 font-semibold">{remaining} kg για τα 90kg</span>
+            </div>
+
+            <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-400">
+              <span>Εκτιμώμενη ημερομηνία στόχου: </span>
+              <strong className="text-white">{eta.dateStr}</strong>
+              <span className="text-neutral-500 block mt-0.5">Αποφόρτιση μέσης μέχρι τώρα: -{spineRelief} kg πίεσης.</span>
+            </div>
           </div>
 
-          <div className="rounded-xl p-3.5 border border-neutral-800 bg-[#0d0d0d]">
-            <div className="text-xs text-neutral-400 font-semibold mb-0.5">
-              Αποφόρτιση μέσης
+          {/* Progress Bar 2: Νερό Ημέρας & Telegram Sync */}
+          <div className="rounded-xl p-4 border border-neutral-800 bg-[#0d0d0d] space-y-3">
+            <div className="flex items-center justify-between text-xs text-neutral-400">
+              <span className="font-semibold text-neutral-300">Νερό σήμερα (Στόχος: 3.0L)</span>
+              <span className="font-bold text-sky-400">{waterProgressPercent}%</span>
             </div>
-            <div className="flex items-baseline space-x-1.5 my-0.5">
-              <span className="text-2xl sm:text-3xl font-extrabold text-neutral-200">-{spineRelief}</span>
-              <span className="text-xs font-semibold text-neutral-400">kg πίεσης</span>
+            
+            {/* Visual Bar */}
+            <div className="w-full bg-black rounded-full h-3 overflow-hidden border border-neutral-800">
+              <div
+                className="bg-gradient-to-r from-sky-600 to-teal-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(5, waterProgressPercent)}%` }}
+              />
             </div>
-            <p className="text-xs text-neutral-400 pt-1 border-t border-neutral-800">
-              1kg απώλεια = 4kg λιγότερη πίεση στη μέση
-            </p>
-          </div>
 
-          <div className="rounded-xl p-3.5 border border-neutral-800 bg-[#0d0d0d]">
-            <div className="text-xs text-neutral-400 font-semibold mb-0.5">
-              Ωράριο 16:8 & νερό
+            <div className="flex items-baseline justify-between text-xs pt-1">
+              <div>
+                <span className="text-2xl font-extrabold text-white font-mono">{(waterMl / 1000).toFixed(2)}</span>
+                <span className="text-neutral-400 font-medium ml-1">/ 3.00 L</span>
+              </div>
+              
+              {/* Quick Add Buttons */}
+              <div className="flex space-x-1.5">
+                <button
+                  onClick={() => handleAddWater(250)}
+                  className="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-neutral-200 border border-neutral-700 transition"
+                >
+                  +250ml
+                </button>
+                <button
+                  onClick={() => handleAddWater(500)}
+                  className="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-sky-300 border border-neutral-700 transition"
+                >
+                  +500ml
+                </button>
+              </div>
             </div>
-            <div className="my-0.5">
-              <p className="text-xs sm:text-sm font-bold text-white">12:00 - 20:00 (Φαγητό)</p>
-              <p className="text-xs text-neutral-400">20:00 - 12:00 (Νηστεία)</p>
+
+            <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-400 flex items-center justify-between">
+              <span>Telegram Bot (@sgkdigital_bot):</span>
+              <span className="text-emerald-400 font-medium">Γράψε «ήπια 1L» για αυτόματη ενημέρωση!</span>
             </div>
-            <p className="text-xs text-emerald-400 font-semibold pt-1 border-t border-neutral-800">
-              Στόχος νερού: 3.0 λίτρα
-            </p>
           </div>
 
         </div>
 
-        {/* 4. ΜΕΝΟΥ ΗΜΕΡΑΣ (PURE BLACK CARDS) */}
+        {/* 4. ΜΕΝΟΥ ΗΜΕΡΑΣ */}
         <div className="rounded-xl sm:rounded-2xl p-4 border border-neutral-800 bg-[#0d0d0d] space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-800 pb-2.5">
             <div>
@@ -374,7 +453,7 @@ export function App() {
               </h2>
             </div>
 
-            {/* Day Selector - Flex wrap so all days are always visible without scrolling */}
+            {/* Day Selector */}
             <div className="flex flex-wrap items-center gap-1.5 py-1">
               {ORDERED_DAYS.map(day => (
                 <button
@@ -516,7 +595,7 @@ export function App() {
           )}
         </div>
 
-        {/* 5. ΑΝΑΖΗΤΗΣΗ ΤΡΟΦΗΣ (PURE BLACK) */}
+        {/* 5. ΑΝΑΖΗΤΗΣΗ ΤΡΟΦΗΣ */}
         <div className="rounded-xl p-3 border border-neutral-800 bg-[#0d0d0d]">
           <input
             type="text"
@@ -527,7 +606,7 @@ export function App() {
           />
         </div>
 
-        {/* 6. ΟΙ 2 ΣΤΗΛΕΣ: ΤΙ ΤΡΩΣ & ΤΙ ΔΕΝ ΤΡΩΣ (PURE BLACK) */}
+        {/* 6. ΟΙ 2 ΣΤΗΛΕΣ: ΤΙ ΤΡΩΣ & ΤΙ ΔΕΝ ΤΡΩΣ */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
           {/* Στήλη 1: Τι τρως */}
@@ -634,7 +713,7 @@ export function App() {
 
         </div>
 
-        {/* 7. ΚΑΝΟΝΕΣ ΓΙΑ ΤΗ ΜΕΣΗ (PURE BLACK) */}
+        {/* 7. ΚΑΝΟΝΕΣ ΓΙΑ ΤΗ ΜΕΣΗ */}
         <div className="p-3.5 sm:p-4 rounded-xl border border-neutral-800 bg-[#0d0d0d] text-xs">
           <span className="text-white font-bold text-xs sm:text-sm block mb-1">
             Οδηγία για τη μέση (Στένωση σπονδυλικού σωλήνα):
@@ -644,7 +723,7 @@ export function App() {
           </p>
         </div>
 
-        {/* 8. ΚΑΤΑΧΩΡΗΣΗ ΚΙΛΩΝ (PURE BLACK) */}
+        {/* 8. ΚΑΤΑΧΩΡΗΣΗ ΚΙΛΩΝ */}
         <div className="rounded-xl p-4 border border-neutral-800 bg-[#0d0d0d]">
           <h3 className="text-xs sm:text-sm font-bold text-white mb-2.5">
             Καταχώρηση σημερινών κιλών
