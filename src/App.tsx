@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { DataService, supabase } from './lib/supabase';
-import { WeightLog, FoodItem, MealRecipe } from './types';
+import { WeightLog, FoodItem, MealRecipe, FoodLogEntry } from './types';
 import { INITIAL_FOODS, INITIAL_WEIGHT_LOGS, INITIAL_MEAL_PLAN } from './data/initialData';
+import { SMART_FOOD_DB, SmartFood, searchSmartFoods } from './data/foodDatabase';
 
 const DAY_NAMES: MealRecipe['day'][] = [
   'Κυριακή',
@@ -45,6 +46,8 @@ export function App() {
   const [isSavingWeight, setIsSavingWeight] = useState<boolean>(false);
   const [showPastMeals, setShowPastMeals] = useState<boolean>(false);
   const [waterMl, setWaterMl] = useState<number>(0);
+  const [foodLog, setFoodLog] = useState<FoodLogEntry[]>([]);
+  const [addQuantity, setAddQuantity] = useState<string>('100');
 
   // Live Time Intelligence
   const [now, setNow] = useState<Date>(new Date());
@@ -74,6 +77,9 @@ export function App() {
         setWaterMl(daily.water_ml);
       }
       
+      const serverFoodLogs = await DataService.getFoodLogs(todayStr);
+      setFoodLog(serverFoodLogs);
+
       const f = await DataService.getFoods();
       if (f.length > 0) setFoods(f);
       const m = await DataService.getMeals();
@@ -88,6 +94,52 @@ export function App() {
     const interval = setInterval(loadData, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // Add food to today's log (Supabase Cloud + Local Cache)
+  const handleLogFood = async (food: SmartFood, grams: number) => {
+    const ratio = grams / 100;
+    const entry: FoodLogEntry = {
+      id: 'fl-' + Date.now(),
+      foodId: food.id,
+      name: food.name,
+      quantity: grams,
+      calories: Math.round(food.calories * ratio),
+      protein: Math.round(food.protein * ratio * 10) / 10,
+      carbs: Math.round(food.carbs * ratio * 10) / 10,
+      fat: Math.round(food.fat * ratio * 10) / 10,
+      time: `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`,
+    };
+    const updated = [...foodLog, entry];
+    setFoodLog(updated);
+    const todayStr = new Date().toISOString().split('T')[0];
+    await DataService.saveFoodLogs(todayStr, updated);
+  };
+
+  // Remove food from today's log (Supabase Cloud + Local Cache)
+  const handleRemoveFoodLog = async (id: string) => {
+    const updated = foodLog.filter(x => x.id !== id);
+    setFoodLog(updated);
+    const todayStr = new Date().toISOString().split('T')[0];
+    await DataService.saveFoodLogs(todayStr, updated);
+  };
+
+  // Clear all food log for today (Supabase Cloud + Local Cache)
+  const handleClearFoodLog = async () => {
+    setFoodLog([]);
+    const todayStr = new Date().toISOString().split('T')[0];
+    await DataService.saveFoodLogs(todayStr, []);
+  };
+
+  // Today's macro totals
+  const todayMacros = foodLog.reduce((acc, e) => ({
+    calories: acc.calories + e.calories,
+    protein: acc.protein + e.protein,
+    carbs: acc.carbs + e.carbs,
+    fat: acc.fat + e.fat,
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+  // Unlimited Smart Food Search (Curated 150+ DB + Dynamic AI Analyzer)
+  const smartResults = searchSmartFoods(searchFood);
 
   const latestWeight = weightLogs.length > 0 
     ? weightLogs[weightLogs.length - 1].weight 
@@ -178,15 +230,7 @@ export function App() {
     setWeightLogs(prev => prev.filter(x => x.id !== id));
   };
 
-  // Filtered foods for instant search
-  const filteredFoods = foods.filter(f => 
-    f.name.toLowerCase().includes(searchFood.toLowerCase()) ||
-    f.description.toLowerCase().includes(searchFood.toLowerCase()) ||
-    f.benefits_or_harms.toLowerCase().includes(searchFood.toLowerCase())
-  );
 
-  const allowedFoods = filteredFoods.filter(f => f.status === 'allowed');
-  const forbiddenFoods = filteredFoods.filter(f => f.status === 'forbidden');
 
   // Meals for selected day
   const dayMeals = meals.filter(m => m.day === selectedDay);
@@ -644,123 +688,187 @@ export function App() {
           )}
         </div>
 
-        {/* 5. ΑΝΑΖΗΤΗΣΗ ΤΡΟΦΗΣ */}
-        <div className="rounded-xl p-3 border border-neutral-800 bg-[#0d0d0d]">
-          <input
-            type="text"
-            value={searchFood}
-            onChange={(e) => setSearchFood(e.target.value)}
-            placeholder="Αναζήτηση τροφής (π.χ. σολομός, ψωμί, φέτα, ρύζι, γιαούρτι, μπύρα)..."
-            className="w-full bg-black border border-neutral-700 rounded-lg px-3.5 py-2.5 text-sm text-white font-medium focus:outline-none focus:border-emerald-500 placeholder:text-neutral-500"
-          />
-        </div>
+        {/* 5. SMART FOOD TRACKER */}
+        <div className="rounded-xl sm:rounded-2xl p-4 border border-neutral-800 bg-[#0d0d0d] space-y-3">
+          <div className="border-b border-neutral-800 pb-2.5">
+            <h2 className="text-sm sm:text-base font-bold text-white">
+              Τι έφαγες σήμερα
+            </h2>
+            <p className="text-xs text-neutral-400">Γράψε κάτι για να δεις αν κάνει, και πάτα «Καταγραφή» για να το προσθέσεις</p>
+          </div>
 
-        {/* 6. ΟΙ 2 ΣΤΗΛΕΣ: ΤΙ ΤΡΩΣ & ΤΙ ΔΕΝ ΤΡΩΣ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          {/* Στήλη 1: Τι τρως */}
-          <div className="rounded-xl p-4 border border-emerald-900/60 bg-[#08120a] space-y-3">
-            <div className="border-b border-emerald-900/40 pb-2">
-              <h2 className="text-sm sm:text-base font-bold text-emerald-400">
-                Τι τρως (Επιτρέπονται)
-              </h2>
-              <p className="text-xs text-neutral-400">Καθαρή πρωτεΐνη, λαχανικά, καλά λιπαρά</p>
+          {/* Daily Macro Summary Bar */}
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
+              <div className="text-lg font-bold text-amber-400">{todayMacros.calories}</div>
+              <div className="text-[10px] text-neutral-500">θερμίδες</div>
             </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-                <span className="font-bold text-white block mb-0.5">Πρωτεΐνες:</span>
-                <p className="text-neutral-300 leading-relaxed text-xs">
-                  Κοτόπουλο, γαλοπούλα, σολομός, σαρδέλες, τσιπούρα, τόνος, μοσχάρι άπαχο, αυγά, θαλασσινά.
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-                <span className="font-bold text-white block mb-0.5">Λαχανικά (Αντιφλεγμονώδη):</span>
-                <p className="text-neutral-300 leading-relaxed text-xs">
-                  Μπρόκολο, κουνουπίδι, σπανάκι, μαρούλι, ρόκα, λάχανο, κολοκυθάκια, μανιτάρια, αγγούρι, βραστά χόρτα.
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-                <span className="font-bold text-white block mb-0.5">Καλά λιπαρά & γαλακτοκομικά:</span>
-                <p className="text-neutral-300 leading-relaxed text-xs">
-                  Έξτρα παρθένο ελαιόλαδο, αβοκάντο, στραγγιστό γιαούρτι 2%, ωμά αμύγδαλα και καρύδια.
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-                <span className="font-bold text-white block mb-0.5">Ροφήματα:</span>
-                <p className="text-neutral-300 leading-relaxed text-xs">
-                  Νερό (3 λίτρα), σκέτος καφές, πράσινο τσάι, σόδα.
-                </p>
-              </div>
+            <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
+              <div className="text-lg font-bold text-emerald-400">{Math.round(todayMacros.protein * 10) / 10}g</div>
+              <div className="text-[10px] text-neutral-500">πρωτεΐνη</div>
             </div>
+            <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
+              <div className={`text-lg font-bold ${todayMacros.carbs > 50 ? 'text-red-400' : todayMacros.carbs > 30 ? 'text-amber-400' : 'text-emerald-400'}`}>{Math.round(todayMacros.carbs * 10) / 10}g</div>
+              <div className="text-[10px] text-neutral-500">υδατάνθρακες</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
+              <div className="text-lg font-bold text-neutral-300">{Math.round(todayMacros.fat * 10) / 10}g</div>
+              <div className="text-[10px] text-neutral-500">λίπος</div>
+            </div>
+          </div>
 
-            {searchFood && allowedFoods.length > 0 && (
-              <div className="pt-2 border-t border-emerald-900/50 space-y-1.5">
-                <span className="text-xs font-bold text-emerald-400">Επιτρεπόμενα:</span>
-                {allowedFoods.map(f => (
-                  <div key={f.id} className="p-2 rounded bg-black border border-emerald-800 text-xs">
-                    <strong className="text-white">{f.name}:</strong> <span className="text-emerald-300">{f.benefits_or_harms}</span>
+          {/* Carb Budget Bar */}
+          {(() => {
+            const carbLimit = 50; // keto daily carb limit
+            const carbPct = Math.min((todayMacros.carbs / carbLimit) * 100, 100);
+            const barColor = todayMacros.carbs > 50 ? 'bg-red-500' : todayMacros.carbs > 35 ? 'bg-amber-500' : 'bg-emerald-500';
+            return (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-neutral-400">Όριο υδατανθράκων (keto): {Math.round(todayMacros.carbs)}/{carbLimit}g</span>
+                  <span className={todayMacros.carbs > 50 ? 'text-red-400 font-bold' : todayMacros.carbs > 35 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
+                    {todayMacros.carbs > 50 ? 'Ξεπέρασες!' : todayMacros.carbs > 35 ? 'Προσοχή' : 'Καλά πας!'}
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-neutral-900 overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${carbPct}%` }}></div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Search Input */}
+          <div className="relative">
+            <input
+              type="text"
+              value={searchFood}
+              onChange={(e) => setSearchFood(e.target.value)}
+              placeholder="Γράψε τροφή (π.χ. κοτόπουλο, πατάτα, ψωμί, μπύρα, σολομός)..."
+              className="w-full bg-black border border-neutral-700 rounded-lg px-3.5 py-2.5 text-sm text-white font-medium focus:outline-none focus:border-emerald-500 placeholder:text-neutral-500"
+            />
+          </div>
+
+          {/* Smart Search Results */}
+          {smartResults.length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-[10px] text-neutral-500">Βρέθηκαν {smartResults.length} τρόφιμα — πάτα «Καταγραφή» για να προσθέσεις</span>
+              {smartResults.map(food => {
+                const statusColor = food.status === 'allowed' ? 'border-emerald-800 bg-[#08120a]'
+                  : food.status === 'limited' ? 'border-amber-800 bg-[#141008]'
+                  : 'border-red-800 bg-[#140808]';
+                const statusBadge = food.status === 'allowed'
+                  ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">Κάνει</span>
+                  : food.status === 'limited'
+                  ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-400 border border-amber-800">Μέτρια</span>
+                  : <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-400 border border-red-800">Κόβεται</span>;
+
+                return (
+                  <div key={food.id} className={`p-3 rounded-lg border ${statusColor} space-y-1.5`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {statusBadge}
+                        <span className="font-bold text-white text-xs">{food.name}</span>
+                        <span className="text-[10px] text-neutral-500">{food.category}</span>
+                      </div>
+                    </div>
+
+                    {/* Macros per 100g */}
+                    <div className="flex items-center gap-3 text-[10px] text-neutral-400">
+                      <span>ανά 100g:</span>
+                      <span className="text-amber-400 font-semibold">{food.calories} kcal</span>
+                      <span className="text-emerald-400 font-semibold">{food.protein}g πρωτ.</span>
+                      <span className={food.carbs > 15 ? 'text-red-400 font-semibold' : 'text-neutral-300 font-semibold'}>{food.carbs}g υδ.</span>
+                      <span className="text-neutral-300 font-semibold">{food.fat}g λίπ.</span>
+                    </div>
+
+                    {/* Note */}
+                    <p className="text-[11px] text-neutral-400 leading-relaxed">{food.note}</p>
+
+                    {/* Weekly limit for limited foods */}
+                    {food.weeklyLimit && (
+                      <p className="text-[10px] text-amber-400 font-semibold">Εβδομαδιαίο όριο: {food.weeklyLimit}</p>
+                    )}
+
+                    {/* Add to log button */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="number"
+                        defaultValue="100"
+                        min="10"
+                        step="10"
+                        className="w-16 bg-black border border-neutral-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-emerald-500"
+                        onChange={(e) => setAddQuantity(e.target.value)}
+                      />
+                      <span className="text-[10px] text-neutral-500">γρ.</span>
+                      <button
+                        onClick={() => {
+                          const grams = parseInt(addQuantity) || 100;
+                          handleLogFood(food, grams);
+                          setSearchFood('');
+                        }}
+                        className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition"
+                      >
+                        Καταγραφή
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* No results */}
+          {searchFood.length >= 2 && smartResults.length === 0 && (
+            <div className="p-3 rounded-lg bg-black border border-neutral-800 text-xs text-neutral-400 text-center">
+              Δεν βρέθηκε τροφή «{searchFood}» — δοκίμασε κάτι άλλο
+            </div>
+          )}
+
+          {/* Today's Food Log */}
+          {foodLog.length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-neutral-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white">Σήμερα έφαγες ({foodLog.length} καταχωρήσεις):</span>
+                <button
+                  onClick={handleClearFoodLog}
+                  className="px-2 py-0.5 rounded text-[10px] font-bold text-red-400 bg-neutral-900 hover:bg-red-950 border border-neutral-800 hover:border-red-900 transition"
+                >
+                  Σβήσε όλα
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                {foodLog.map(entry => (
+                  <div key={entry.id} className="flex items-center justify-between p-2 rounded bg-black border border-neutral-800 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] text-neutral-500 flex-shrink-0">{entry.time}</span>
+                      <span className="text-white font-medium truncate">{entry.name}</span>
+                      <span className="text-neutral-500 flex-shrink-0">{entry.quantity}g</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-amber-400 text-[10px]">{entry.calories}kcal</span>
+                      <span className="text-emerald-400 text-[10px]">{entry.protein}g</span>
+                      <span className="text-neutral-400 text-[10px]">{entry.carbs}g υδ.</span>
+                      <button
+                        onClick={() => handleRemoveFoodLog(entry.id)}
+                        className="text-neutral-600 hover:text-red-400 font-bold text-xs ml-1"
+                        title="Αφαίρεση"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-
-          {/* Στήλη 2: Τι κόβεις */}
-          <div className="rounded-xl p-4 border border-red-900/60 bg-[#140808] space-y-3">
-            <div className="border-b border-red-900/40 pb-2">
-              <h2 className="text-sm sm:text-base font-bold text-red-400">
-                Τι κόβεις (Απαγορεύονται)
-              </h2>
-              <p className="text-xs text-neutral-400">Μπλοκάρουν το λίπος και φέρνουν φλεγμονή στη μέση</p>
             </div>
+          )}
 
-            <div className="space-y-2 text-xs">
-              <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-                <span className="font-bold text-red-400 block mb-0.5">Ψωμιά & ζυμαρικά:</span>
-                <p className="text-neutral-300 leading-relaxed text-xs">
-                  Ψωμί (λευκό, ολικής, φρυγανιές, παξιμάδια, πίτες), μακαρόνια, ρύζι, κριθαράκι.
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-                <span className="font-bold text-red-400 block mb-0.5">Πατάτες & αμυλούχα:</span>
-                <p className="text-neutral-300 leading-relaxed text-xs">
-                  Πατάτες (τηγανητές, ψητές, πουρές), καλαμπόκι, αρακάς.
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-                <span className="font-bold text-red-400 block mb-0.5">Ζάχαρη & γλυκά:</span>
-                <p className="text-neutral-300 leading-relaxed text-xs">
-                  Σοκολάτες, πάστες, παγωτά, μπισκότα, μέλι, μαρμελάδες, δημητριακά πρωινού.
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-                <span className="font-bold text-red-400 block mb-0.5">Αναψυκτικά & αλκοόλ:</span>
-                <p className="text-neutral-300 leading-relaxed text-xs">
-                  Αναψυκτικά με ζάχαρη, έτοιμοι χυμοί, μπύρα, γλυκά ποτά.
-                </p>
-              </div>
-            </div>
-
-            {searchFood && forbiddenFoods.length > 0 && (
-              <div className="pt-2 border-t border-red-900/50 space-y-1.5">
-                <span className="text-xs font-bold text-red-400">Απαγορευμένα:</span>
-                {forbiddenFoods.map(f => (
-                  <div key={f.id} className="p-2 rounded bg-black border border-red-800 text-xs">
-                    <strong className="text-white">{f.name}:</strong> <span className="text-red-300">{f.benefits_or_harms}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* Telegram Tip */}
+          <div className="pt-2 border-t border-neutral-800 text-[10px] text-neutral-500">
+            Σύντομα: γράψε «έφαγα 200g κοτόπουλο» στο Telegram για αυτόματη καταγραφή
           </div>
-
         </div>
+
 
         {/* 7. ΚΑΝΟΝΕΣ ΓΙΑ ΤΗ ΜΕΣΗ */}
         <div className="p-3.5 sm:p-4 rounded-xl border border-neutral-800 bg-[#0d0d0d] text-xs">

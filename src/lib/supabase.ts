@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { FoodItem, MealRecipe, WeightLog, DailyLog, UserSettings } from '../types';
+import { FoodItem, MealRecipe, WeightLog, DailyLog, UserSettings, FoodLogEntry } from '../types';
 import { INITIAL_FOODS, INITIAL_MEAL_PLAN, INITIAL_USER_SETTINGS, INITIAL_WEIGHT_LOGS } from '../data/initialData';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xrmvingehhiymchoggka.supabase.co';
@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   MEALS: 'spiros_local_meals',
   DAILY: 'spiros_local_daily',
   SETTINGS: 'spiros_local_settings',
+  FOOD_LOGS: 'spiros_local_food_logs',
 };
 
 // --- DATA SERVICE WITH AUTO SUPABASE + LOCALSTORAGE FALLBACK ---
@@ -206,6 +207,58 @@ export const DataService = {
       // ignore
     }
     localStorage.setItem(STORAGE_KEYS.DAILY + '_' + log.date, JSON.stringify(log));
+  },
+
+  // --- FOOD LOGS (spiros_daily_logs.completed_habits in Supabase) ---
+  async getFoodLogs(date: string): Promise<FoodLogEntry[]> {
+    try {
+      const { data, error } = await supabase
+        .from('spiros_daily_logs')
+        .select('completed_habits')
+        .eq('date', date)
+        .single();
+      if (!error && data && Array.isArray(data.completed_habits)) {
+        localStorage.setItem(STORAGE_KEYS.FOOD_LOGS + '_' + date, JSON.stringify(data.completed_habits));
+        return data.completed_habits as FoodLogEntry[];
+      }
+    } catch {
+      // fallback to local
+    }
+
+    const localStr = localStorage.getItem(STORAGE_KEYS.FOOD_LOGS + '_' + date);
+    if (localStr) {
+      try { return JSON.parse(localStr); } catch { /* ignore */ }
+    }
+    return [];
+  },
+
+  async saveFoodLogs(date: string, foods: FoodLogEntry[]): Promise<void> {
+    localStorage.setItem(STORAGE_KEYS.FOOD_LOGS + '_' + date, JSON.stringify(foods));
+    try {
+      const { data: existing } = await supabase
+        .from('spiros_daily_logs')
+        .select('*')
+        .eq('date', date)
+        .single();
+
+      const updatedLog = {
+        id: existing?.id || 'daily-' + date,
+        date,
+        water_ml: existing?.water_ml ?? 0,
+        fasting_hours: existing?.fasting_hours ?? 16,
+        exercise_minutes: existing?.exercise_minutes ?? 20,
+        exercise_type: existing?.exercise_type ?? 'recumbent_bike',
+        lumbar_feeling: existing?.lumbar_feeling ?? 'good',
+        completed_habits: foods,
+        notes: existing?.notes ?? 'Καλή ενέργεια και καμία ενόχληση στη μέση.',
+      };
+
+      await supabase
+        .from('spiros_daily_logs')
+        .upsert([updatedLog], { onConflict: 'date' });
+    } catch (err) {
+      console.warn('Supabase saveFoodLogs error:', err);
+    }
   },
 
   // --- SETTINGS (spiros_settings) ---

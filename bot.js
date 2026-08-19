@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { searchSmartFoods, analyzeFoodDynamically } from './src/data/foodClassifier.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -128,7 +129,90 @@ async function resetTodayWater() {
   } catch (err) {
     console.error('Supabase water reset error:', err.message);
   }
-  return 0;
+}
+
+// Food Database Helpers for Supabase
+async function getTodayFoodLogs() {
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const { data } = await supabase
+      .from('spiros_daily_logs')
+      .select('completed_habits')
+      .eq('date', today)
+      .single();
+    if (data && Array.isArray(data.completed_habits)) {
+      return data.completed_habits;
+    }
+  } catch {
+    // fallback
+  }
+  return [];
+}
+
+async function addTodayFoodLog(food, grams) {
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const ratio = grams / 100;
+
+  const entry = {
+    id: 'fl-' + Date.now(),
+    foodId: food.id,
+    name: food.name,
+    quantity: grams,
+    calories: Math.round(food.calories * ratio),
+    protein: Math.round(food.protein * ratio * 10) / 10,
+    carbs: Math.round(food.carbs * ratio * 10) / 10,
+    fat: Math.round(food.fat * ratio * 10) / 10,
+    time: timeStr,
+  };
+
+  const currentLogs = await getTodayFoodLogs();
+  const updatedLogs = [...currentLogs, entry];
+
+  try {
+    const { data: existing } = await supabase
+      .from('spiros_daily_logs')
+      .select('*')
+      .eq('date', today)
+      .single();
+
+    await supabase.from('spiros_daily_logs').upsert({
+      id: existing?.id || 'daily-' + today,
+      date: today,
+      water_ml: existing?.water_ml ?? 0,
+      fasting_hours: existing?.fasting_hours ?? 16,
+      exercise_minutes: existing?.exercise_minutes ?? 20,
+      exercise_type: existing?.exercise_type ?? 'recumbent_bike',
+      lumbar_feeling: existing?.lumbar_feeling ?? 'good',
+      completed_habits: updatedLogs,
+      notes: existing?.notes ?? 'Καλή ενέργεια και καμία ενόχληση στη μέση.',
+    }, { onConflict: 'date' });
+  } catch (err) {
+    console.error('Supabase food save error:', err.message);
+  }
+
+  return { entry, allLogs: updatedLogs };
+}
+
+async function clearTodayFoodLogs() {
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const { data: existing } = await supabase
+      .from('spiros_daily_logs')
+      .select('*')
+      .eq('date', today)
+      .single();
+
+    await supabase.from('spiros_daily_logs').upsert({
+      id: existing?.id || 'daily-' + today,
+      date: today,
+      water_ml: existing?.water_ml ?? 0,
+      completed_habits: [],
+    }, { onConflict: 'date' });
+  } catch (err) {
+    console.error('Supabase food clear error:', err.message);
+  }
 }
 
 async function saveWeight(weightKg) {
@@ -200,6 +284,37 @@ function parseWeightAmount(text) {
   return null;
 }
 
+// Parse Food Logging Input (e.g. "έφαγα 200g κοτόπουλο", "φαγητό: 150γρ σολομός")
+function parseFoodGramAndName(text) {
+  const lower = text.toLowerCase().trim();
+  
+  // Strip trigger prefix
+  let cleaned = lower
+    .replace(/^(?:εφαγα|έφαγα|φαγητο:|φαγητό:|φαγητο|φαγητό)\s*/i, '')
+    .trim();
+
+  // Extract grams if present: e.g. "200g", "200 γρ", "200γρ", "200 γραμμαρια"
+  let grams = 100; // default
+  const gramMatch = cleaned.match(/(\d+)\s*(?:g|gr|γρ|γραμμαρια|γραμμάρια|γραμμ)/);
+  if (gramMatch) {
+    grams = parseInt(gramMatch[1]) || 100;
+    cleaned = cleaned.replace(gramMatch[0], '').trim();
+  }
+
+  // Extract piece count e.g. "2 αυγα", "3 κεφτεδακια", "1 μπανανα"
+  const pieceMatch = cleaned.match(/^(\d+)\s*(?:αυγ|τεμ|κομματ|φετ|μεριδ)/);
+  if (pieceMatch) {
+    const pieces = parseInt(pieceMatch[1]) || 1;
+    grams = pieces * 60; // ~60g per egg/piece
+    cleaned = cleaned.replace(/^\d+\s*/, '').trim();
+  }
+
+  if (cleaned.length >= 2) {
+    return { grams, query: cleaned };
+  }
+  return null;
+}
+
 // Message Router
 async function handleIncomingMessage(msg) {
   const chatId = msg.chat.id;
@@ -217,22 +332,92 @@ async function handleIncomingMessage(msg) {
       `<b>Γεια σου Σπύρο!</b>\n` +
       `Είμαι ο προσωπικός σου βοηθός για τη <b>Low-Carb 16:8 διατροφή</b> και την <b>προστασία της μέσης</b>.\n\n` +
       `<b>Τι μπορώ να κάνω για σένα:</b>\n` +
-      `• <b>Νερό:</b> Γράψε π.χ. <i>«ήπια 1 λίτρο»</i> ή <i>«500ml»</i> ή <i>«1 ποτήρι»</i> και θα ενημερώσω αμέσως το Dashboard σου!\n` +
+      `• <b>Νερό:</b> Γράψε π.χ. <i>«ήπια 1 λίτρο»</i> ή <i>«500ml»</i> ή <i>«1 ποτήρι»</i>.\n` +
+      `• <b>Φαγητό:</b> Γράψε π.χ. <i>«έφαγα 200g κοτόπουλο»</i> ή <i>«έφαγα 150g σολομό»</i> και θα υπολογίσω αμέσως θερμίδες, πρωτεΐνη και υδατάνθρακες!\n` +
       `• <b>Βάρος:</b> Γράψε π.χ. <i>«103.5 kg»</i> και θα το καταχωρήσω στη βάση.\n` +
-      `• <b>Υπενθυμίσεις:</b> Θα σου στέλνω αυτόματα μέσα στην ημέρα να πίνεις νερό και υπενθυμίσεις για τα γεύματα 12:00, 16:00, 20:00.\n\n` +
+      `• <b>Υπενθυμίσεις:</b> Αυτόματες υπενθυμίσεις για νερό και γεύματα 12:00, 16:00, 20:00.\n\n` +
       `<b>Σημερινό νερό:</b> ${(todayWater/1000).toFixed(2)} / 3.00 L\n${bar}`
     );
     return;
   }
 
-  // 2. Reset or Subtract water
+  // 2. Clear or Show Food Log
+  if (lower.includes('σβησε φαγητ') || lower.includes('μηδενισε φαγητ') || lower.includes('σβήσε φαγητά') || lower.includes('καθαρισε φαγητ')) {
+    await clearTodayFoodLogs();
+    await sendMessage(chatId, `<b>Τα σημερινά φαγητά μηδενίστηκαν!</b>\nΌλα τα macros καθάρισαν και στο Dashboard.`);
+    return;
+  }
+
+  if (lower === 'τι εφαγα' || lower === 'τι έφαγα' || lower === 'φαγητα' || lower === 'φαγητά') {
+    const logs = await getTodayFoodLogs();
+    if (logs.length === 0) {
+      await sendMessage(chatId, `<b>Δεν έχεις καταγράψει φαγητό σήμερα.</b>\nΓράψε π.χ. <i>«έφαγα 200g κοτόπουλο»</i>!`);
+      return;
+    }
+    const totals = logs.reduce((acc, e) => ({
+      calories: acc.calories + e.calories,
+      protein: acc.protein + e.protein,
+      carbs: acc.carbs + e.carbs,
+      fat: acc.fat + e.fat,
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    let listText = logs.map(e => `• ${e.time} - <b>${e.name}</b> (${e.quantity}g): ${e.calories}kcal | ${e.protein}g πρωτ. | ${e.carbs}g υδ.`).join('\n');
+    
+    await sendMessage(chatId,
+      `<b>Σημερινή Διατροφή (${logs.length} καταχωρήσεις):</b>\n\n` +
+      `${listText}\n\n` +
+      `<b>ΣΥΝΟΛΑ ΗΜΕΡΑΣ:</b>\n` +
+      `🔥 <b>Θερμίδες:</b> ${totals.calories} kcal\n` +
+      `🥩 <b>Πρωτεΐνη:</b> ${Math.round(totals.protein * 10) / 10}g\n` +
+      `🍞 <b>Υδατάνθρακες:</b> ${Math.round(totals.carbs * 10) / 10} / 50g ${totals.carbs > 50 ? '⚠️ (Υπέρβαση!)' : '✅ (Εντός keto)'}\n` +
+      `🥑 <b>Λίπος:</b> ${Math.round(totals.fat * 10) / 10}g`
+    );
+    return;
+  }
+
+  // 3. Log Food via Telegram
+  if (lower.startsWith('εφαγα') || lower.startsWith('έφαγα') || lower.startsWith('φαγητο:') || lower.startsWith('φαγητό:')) {
+    const parsed = parseFoodGramAndName(text);
+    if (parsed) {
+      const results = searchSmartFoods(parsed.query);
+      const foodItem = results.length > 0 ? results[0] : analyzeFoodDynamically(parsed.query);
+      
+      const { entry, allLogs } = await addTodayFoodLog(foodItem, parsed.grams);
+      const totals = allLogs.reduce((acc, e) => ({
+        calories: acc.calories + e.calories,
+        protein: acc.protein + e.protein,
+        carbs: acc.carbs + e.carbs,
+        fat: acc.fat + e.fat,
+      }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+      const badge = foodItem.status === 'allowed' ? '🟢 Κάνει' : foodItem.status === 'limited' ? '🟠 Μέτρια' : '🔴 Κόβεται';
+      
+      await sendMessage(chatId,
+        `<b>${badge} | Καταχωρήθηκε!</b>\n` +
+        `🍽️ <b>${foodItem.name}</b> (${parsed.grams}g)\n\n` +
+        `<b>Macros γεύματος:</b>\n` +
+        `• Θερμίδες: <b>${entry.calories} kcal</b>\n` +
+        `• Πρωτεΐνη: <b>${entry.protein}g</b>\n` +
+        `• Υδατάνθρακες: <b>${entry.carbs}g</b>\n` +
+        `• Λίπος: <b>${entry.fat}g</b>\n\n` +
+        `<i>${foodItem.note}</i>\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `📊 <b>Σύνολα σήμερα:</b>\n` +
+        `🔥 ${totals.calories} kcal | 🥩 ${Math.round(totals.protein)}g πρωτεΐνη | 🍞 ${Math.round(totals.carbs)}/50g υδατάνθρακες\n` +
+        `<i>(Ενημερώθηκε άμεσα και το Dashboard!)</i>`
+      );
+      return;
+    }
+  }
+
+  // 4. Reset or Subtract water
   if (lower.includes('μηδενισ') || lower.includes('σβησε νερο') || lower.includes('σβήσε νερό') || lower.includes('reset') || lower === 'σβησε' || lower === 'σβήσε') {
     await resetTodayWater();
     await sendMessage(chatId, `<b>Το νερό της ημέρας μηδενίστηκε (0.00 / 3.00 L)!</b>\nΈτοιμο για νέα καταγραφή.`);
     return;
   }
 
-  // 3. Check for Water logging or subtraction
+  // 5. Check for Water logging or subtraction
   const isNegative = lower.includes('-') || lower.includes('αφαιρεσε') || lower.includes('αφαίρεσε');
   const waterMl = parseWaterAmount(text);
   if (waterMl) {
@@ -251,7 +436,7 @@ async function handleIncomingMessage(msg) {
     return;
   }
 
-  // 3. Check for Weight logging
+  // 6. Check for Weight logging
   const weightVal = parseWeightAmount(text);
   if (weightVal && (lower.includes('κιλ') || lower.includes('kg') || lower.includes('ζυγ') || text.length <= 6)) {
     await saveWeight(weightVal);
@@ -271,7 +456,7 @@ async function handleIncomingMessage(msg) {
     return;
   }
 
-  // 4. Food question / Menu
+  // 7. Food question / Menu
   if (lower.includes('φαγητ') || lower.includes('μενού') || lower.includes('μενου') || lower.includes('τι να φαω') || lower.includes('τι να φάω')) {
     const nowHour = new Date().getHours();
     let mealAdvice = '';
@@ -296,8 +481,10 @@ async function handleIncomingMessage(msg) {
   const bar = renderProgressBar(todayWater, 3000);
   await sendMessage(chatId,
     `<b>Έλαβα το μήνυμά σου!</b>\n\n` +
-    `• Για να καταγράψεις νερό, γράψε π.χ.: <i>«ήπια 500ml»</i> ή <i>«ήπια 1 λίτρο»</i>\n` +
-    `• Για να καταγράψεις βάρος, γράψε π.χ.: <i>«103.2 kg»</i>\n\n` +
+    `• Για νερό: <i>«ήπια 500ml»</i> ή <i>«ήπια 1 λίτρο»</i>\n` +
+    `• Για φαγητό: <i>«έφαγα 200g κοτόπουλο»</i> ή <i>«έφαγα σαλάτα»</i>\n` +
+    `• Για βάρος: <i>«103.2 kg»</i>\n` +
+    `• Για να δεις τι έφαγες: <i>«τι έφαγα»</i>\n\n` +
     `<b>Σημερινό νερό:</b> ${(todayWater/1000).toFixed(2)} / 3.00 L\n${bar}`
   );
 }

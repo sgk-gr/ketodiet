@@ -24,6 +24,18 @@ export interface FoodItem {
   created_at?: string;
 }
 
+export interface FoodLogEntry {
+  id: string;
+  foodId: string;
+  name: string;
+  quantity: number; // grams
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  time: string;
+}
+
 export interface WeightLog {
   id: string;
   date: string;
