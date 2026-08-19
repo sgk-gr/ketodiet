@@ -374,8 +374,8 @@ export function App() {
               </h2>
             </div>
 
-            {/* Day Selector */}
-            <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar py-1">
+            {/* Day Selector - Flex wrap so all days are always visible without scrolling */}
+            <div className="flex flex-wrap items-center gap-1.5 py-1">
               {ORDERED_DAYS.map(day => (
                 <button
                   key={day}
@@ -383,7 +383,7 @@ export function App() {
                     setSelectedDay(day);
                     setShowPastMeals(false);
                   }}
-                  className={`px-2.5 py-1 rounded text-xs font-bold transition shrink-0 ${
+                  className={`px-2.5 py-1 rounded text-xs font-bold transition ${
                     selectedDay === day 
                       ? 'bg-emerald-600 text-white font-extrabold shadow' 
                       : 'bg-black text-neutral-400 hover:text-white border border-neutral-800'
