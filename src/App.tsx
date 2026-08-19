@@ -17,7 +17,8 @@ import {
   Moon, 
   Sun,
   Database,
-  Calendar
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { SupabaseSetupModal } from './components/SupabaseSetupModal';
 
@@ -49,6 +50,7 @@ export function App() {
   const [todayWeight, setTodayWeight] = useState<string>('');
   const [isSavingWeight, setIsSavingWeight] = useState<boolean>(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState<boolean>(false);
+  const [showPastMeals, setShowPastMeals] = useState<boolean>(false);
 
   // Live Time Intelligence
   const [now, setNow] = useState<Date>(new Date());
@@ -60,7 +62,7 @@ export function App() {
   const currentHour = now.getHours();
   const currentMinute = now.getMinutes();
   const currentSecond = now.getSeconds();
-  const currentDayIndex = now.getDay(); // 0 = Κυριακή, 1 = Δευτέρα, ...
+  const currentDayIndex = now.getDay();
   const currentDayName = DAY_NAMES[currentDayIndex];
 
   // Selected Day for Menu (Defaults to TODAY)
@@ -131,12 +133,7 @@ export function App() {
   const snackMeal = dayMeals.find(m => m.meal_type === 'snack');
   const dinnerMeal = dayMeals.find(m => m.meal_type === 'dinner');
 
-  // Smart Current Meal Decision based on HOUR
-  // 00:00 - 11:59 => FASTING (Next: Lunch at 12:00)
-  // 12:00 - 15:59 => LUNCH TIME (12:00)
-  // 16:00 - 19:59 => SNACK TIME (16:00) / Upcoming dinner (20:00)
-  // 20:00 - 21:59 => DINNER TIME (20:00)
-  // 22:00 - 23:59 => KITCHEN CLOSED / NIGHT FASTING
+  // Time Phase
   let timePhase: 'morning_fast' | 'lunch_now' | 'snack_now' | 'dinner_now' | 'night_fast' = 'morning_fast';
   if (currentHour >= 0 && currentHour < 12) {
     timePhase = 'morning_fast';
@@ -150,7 +147,7 @@ export function App() {
     timePhase = 'night_fast';
   }
 
-  // Calculate countdown to 12:00 or 20:00
+  // Calculate countdown
   let countdownText = '';
   if (timePhase === 'morning_fast') {
     const minLeft = (11 - currentHour) * 60 + (59 - currentMinute);
@@ -162,9 +159,25 @@ export function App() {
     const h = Math.floor(minLeft / 60);
     const m = minLeft % 60;
     countdownText = `Απομένουν ${h}ω ${m}λ στο παράθυρο φαγητού (κλείνει στις 20:00)`;
+  } else if (timePhase === 'dinner_now') {
+    const minLeft = (21 - currentHour) * 60 + (59 - currentMinute);
+    countdownText = `Τελευταίο γεύμα! Η κουζίνα κλείνει σε ${minLeft} λεπτά`;
   } else {
     countdownText = `Η κουζίνα έκλεισε! Επόμενο γεύμα αύριο στις 12:00`;
   }
+
+  const isSelectedDayToday = selectedDay === currentDayName;
+
+  // SMART TIME FILTER FOR MEALS:
+  // If viewing TODAY:
+  // - If hour < 12: show Lunch (12:00) as upcoming
+  // - If 12 <= hour < 16: show Lunch (12:00) as active, Snack as next
+  // - If 16 <= hour < 20: Lunch is past! Show Snack (16:00) as active, Dinner as next
+  // - If hour >= 20 & hour < 22: Lunch & Snack are PAST! Show Dinner (20:00) ONLY!
+  // - If hour >= 22: Everything is past! Show night fasting message.
+  const isLunchPast = isSelectedDayToday && currentHour >= 16;
+  const isSnackPast = isSelectedDayToday && currentHour >= 20;
+  const isDinnerPast = isSelectedDayToday && currentHour >= 22;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-16">
@@ -180,11 +193,11 @@ export function App() {
               <div className="flex items-center space-x-2">
                 <h1 className="text-base font-bold text-white leading-none">Spiros Smart Diet</h1>
                 <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold uppercase">
-                  Live AI Guide
+                  Time-Aware AI
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Σήμερα είναι <strong className="text-emerald-400">{currentDayName}</strong> • {String(currentHour).padStart(2, '0')}:{String(currentMinute).padStart(2, '0')}:{String(currentSecond).padStart(2, '0')}
+                Σήμερα: <strong className="text-emerald-400">{currentDayName}</strong> • {String(currentHour).padStart(2, '0')}:{String(currentMinute).padStart(2, '0')}:{String(currentSecond).padStart(2, '0')}
               </p>
             </div>
           </div>
@@ -201,7 +214,7 @@ export function App() {
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
 
-        {/* 2. ΠΑΝΕΞΥΠΝΟ BOX: ΤΙ ΤΡΩΣ ΑΚΡΙΒΩΣ ΤΩΡΑ (TIME-AWARE AI BOX) */}
+        {/* 2. ΠΑΝΕΞΥΠΝΟΣ ΒΟΗΘΟΣ: ΤΙ ΤΡΩΣ ΑΥΤΗ ΤΗ ΣΤΙΓΜΗ */}
         <div className="rounded-3xl p-6 border-2 border-emerald-500/40 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/30 shadow-2xl relative overflow-hidden">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-800">
@@ -214,11 +227,11 @@ export function App() {
                   🧠 Έξυπνος Βοηθός • Ώρα {String(currentHour).padStart(2, '0')}:{String(currentMinute).padStart(2, '0')} ({currentDayName})
                 </span>
                 <h2 className="text-lg sm:text-xl font-black text-white">
-                  {timePhase === 'morning_fast' && '🔒 Τώρα είσαι σε Φάση Νηστείας (Καύση Λίπους)'}
-                  {timePhase === 'lunch_now' && '☀️ Τώρα είναι Ώρα για Μεσημεριανό (12:00 - 16:00)'}
-                  {timePhase === 'snack_now' && '☕ Τώρα είναι Ώρα για Απογευματινό Σνακ (16:00)'}
-                  {timePhase === 'dinner_now' && '🌙 Τώρα είναι Ώρα για Βραδινό (20:00 - Τελευταίο Γεύμα)'}
-                  {timePhase === 'night_fast' && '🛑 Η Κουζίνα Έκλεισε για Σήμερα (Νηστεία & Αυτοφαγία)'}
+                  {timePhase === 'morning_fast' && '🔒 Τώρα είσαι σε Νηστεία (Μηδέν Θερμίδες)'}
+                  {timePhase === 'lunch_now' && '☀️ Τώρα είναι Ώρα για Μεσημεριανό (1ο Γεύμα)'}
+                  {timePhase === 'snack_now' && '☕ Τώρα είναι Ώρα για Απογευματινό Σνακ'}
+                  {timePhase === 'dinner_now' && '🌙 Τώρα είναι Ώρα για Βραδινό (Τελευταίο Γεύμα)'}
+                  {timePhase === 'night_fast' && '🛑 Η Κουζίνα Έκλεισε για Σήμερα (Νυχτερινή Νηστεία)'}
                 </h2>
               </div>
             </div>
@@ -235,34 +248,25 @@ export function App() {
           {/* A. ΠΡΩΙ / ΝΗΣΤΕΙΑ (00:00 - 11:59) */}
           {timePhase === 'morning_fast' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <span className="text-xs font-extrabold text-sky-400 uppercase flex items-center gap-1.5">
-                    <Droplet className="w-4 h-4" /> Τι πίνεις ΤΩΡΑ (Μηδέν Θερμίδες):
-                  </span>
-                  <p className="text-sm text-slate-200">
-                    <strong>1 μεγάλο ποτήρι δροσερό νερό (500ml)</strong> + <strong>1 σκέτο καφέ</strong> (ελληνικό/espresso) ή <strong>πράσινο τσάι</strong>.
-                  </p>
-                  <p className="text-xs text-emerald-400">
-                    ✨ Το σώμα καίει το αποθηκευμένο λίπος και προστατεύει τους δίσκους της μέσης.
-                  </p>
-                </div>
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <span className="text-xs font-extrabold text-sky-400 uppercase flex items-center gap-1.5">
+                  <Droplet className="w-4 h-4" /> Τι πίνεις ΤΩΡΑ:
+                </span>
+                <p className="text-sm text-slate-200">
+                  <strong>1 μεγάλο ποτήρι δροσερό νερό (500ml)</strong> + <strong>1 σκέτο καφέ</strong> ή <strong>πράσινο τσάι</strong>.
+                </p>
+                <p className="text-xs text-emerald-400">
+                  ✨ Το σώμα καίει το αποθηκευμένο λίπος και ενυδατώνει τους δίσκους της μέσης.
+                </p>
               </div>
 
-              {/* Προεπισκόπηση Μεσημεριανού στις 12:00 */}
               {lunchMeal && (
                 <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-400 uppercase">
-                      🍴 Στις 12:00 θα φας (Σημερινό Μεσημεριανό):
-                    </span>
-                    <span className="text-xs font-bold text-slate-300">{lunchMeal.calories} kcal • {lunchMeal.protein_g}g πρωτεΐνη</span>
-                  </div>
+                  <span className="text-xs font-bold text-emerald-400 uppercase">
+                    🍴 Στις 12:00 θα φας (Σημερινό Μεσημεριανό):
+                  </span>
                   <h3 className="text-base font-bold text-white">{lunchMeal.title}</h3>
                   <p className="text-xs text-slate-300">{lunchMeal.description}</p>
-                  <div className="pt-2 border-t border-emerald-500/20 text-xs text-slate-300">
-                    <strong>Υλικά:</strong> {lunchMeal.ingredients.join(' • ')}
-                  </div>
                 </div>
               )}
             </div>
@@ -270,34 +274,20 @@ export function App() {
 
           {/* B. ΜΕΣΗΜΕΡΙ (12:00 - 15:59) */}
           {timePhase === 'lunch_now' && lunchMeal && (
-            <div className="space-y-3">
-              <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-emerald-400 uppercase flex items-center gap-1">
-                    <Sun className="w-4 h-4" /> Προτεινόμενο Μεσημεριανό για Σήμερα ({selectedDay}):
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold">
-                    {lunchMeal.protein_g}g Πρωτεΐνη • {lunchMeal.carbs_g}g Υδατάνθρακες
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-extrabold text-white">{lunchMeal.title}</h3>
-                <p className="text-xs text-slate-200">{lunchMeal.description}</p>
-
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1.5">
-                  <p className="text-emerald-300 font-semibold">🛒 Υλικά που χρειάζεσαι:</p>
-                  <ul className="list-disc list-inside text-slate-300 space-y-0.5">
-                    {lunchMeal.ingredients.map((ing, i) => (
-                      <li key={i}>{ing}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                {lunchMeal.spine_benefit && (
-                  <p className="text-xs text-indigo-300 bg-indigo-950/40 p-2.5 rounded-xl border border-indigo-500/20">
-                    ✨ <strong>Όφελος για τη Μέση:</strong> {lunchMeal.spine_benefit}
-                  </p>
-                )}
+            <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-emerald-400 uppercase flex items-center gap-1">
+                  <Sun className="w-4 h-4" /> Τι τρως ΤΩΡΑ (Μεσημεριανό):
+                </span>
+                <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold">
+                  {lunchMeal.protein_g}g Πρωτεΐνη • {lunchMeal.carbs_g}g Υδατάνθρακες
+                </span>
+              </div>
+              <h3 className="text-lg font-extrabold text-white">{lunchMeal.title}</h3>
+              <p className="text-xs text-slate-200">{lunchMeal.description}</p>
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1">
+                <p className="text-emerald-300 font-semibold">🛒 Υλικά:</p>
+                <p className="text-slate-300">{lunchMeal.ingredients.join(' • ')}</p>
               </div>
             </div>
           )}
@@ -322,15 +312,11 @@ export function App() {
                 </p>
               </div>
 
-              {/* Προεπισκόπηση Βραδινού στις 20:00 */}
               {dinnerMeal && (
                 <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-indigo-400 uppercase">
-                      🌙 Στις 20:00 θα φας (Βραδινό):
-                    </span>
-                    <span className="text-xs font-bold text-slate-300">{dinnerMeal.calories} kcal • {dinnerMeal.protein_g}g πρωτεΐνη</span>
-                  </div>
+                  <span className="text-xs font-bold text-indigo-400 uppercase">
+                    🌙 Στις 20:00 θα φας (Βραδινό):
+                  </span>
                   <h3 className="text-base font-bold text-white">{dinnerMeal.title}</h3>
                   <p className="text-xs text-slate-300">{dinnerMeal.description}</p>
                 </div>
@@ -340,33 +326,24 @@ export function App() {
 
           {/* D. ΒΡΑΔΥ (20:00 - 21:59) */}
           {timePhase === 'dinner_now' && dinnerMeal && (
-            <div className="space-y-3">
-              <div className="p-4 rounded-2xl bg-indigo-950/30 border border-indigo-500/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-indigo-400 uppercase flex items-center gap-1">
-                    <Moon className="w-4 h-4" /> Τι τρως ΤΩΡΑ (Βραδινό 20:00 - Τελευταίο Γεύμα):
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 text-xs font-bold">
-                    {dinnerMeal.protein_g}g Πρωτεΐνη • {dinnerMeal.carbs_g}g Υδατάνθρακες
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-extrabold text-white">{dinnerMeal.title}</h3>
-                <p className="text-xs text-slate-200">{dinnerMeal.description}</p>
-
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1.5">
-                  <p className="text-indigo-300 font-semibold">🛒 Υλικά:</p>
-                  <ul className="list-disc list-inside text-slate-300 space-y-0.5">
-                    {dinnerMeal.ingredients.map((ing, i) => (
-                      <li key={i}>{ing}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <p className="text-xs text-amber-300 bg-amber-950/30 p-2 rounded-xl border border-amber-500/20">
-                  ⚠️ <strong>Υπενθύμιση:</strong> Αυτό είναι το τελευταίο γεύμα της ημέρας. Μετά τις 20:30 πίνουμε μόνο νερό ή χαμομήλι!
-                </p>
+            <div className="p-4 rounded-2xl bg-indigo-950/30 border border-indigo-500/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-indigo-400 uppercase flex items-center gap-1">
+                  <Moon className="w-4 h-4" /> Τι τρως ΤΩΡΑ (Βραδινό 20:00 - Τελευταίο Γεύμα):
+                </span>
+                <span className="px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 text-xs font-bold">
+                  {dinnerMeal.protein_g}g Πρωτεΐνη • {dinnerMeal.carbs_g}g Υδατάνθρακες
+                </span>
               </div>
+              <h3 className="text-lg font-extrabold text-white">{dinnerMeal.title}</h3>
+              <p className="text-xs text-slate-200">{dinnerMeal.description}</p>
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1">
+                <p className="text-indigo-300 font-semibold">🛒 Υλικά:</p>
+                <p className="text-slate-300">{dinnerMeal.ingredients.join(' • ')}</p>
+              </div>
+              <p className="text-xs text-amber-300 bg-amber-950/30 p-2 rounded-xl border border-amber-500/20">
+                ⚠️ <strong>Υπενθύμιση:</strong> Αυτό είναι το τελευταίο γεύμα. Μετά τις 20:30 πίνουμε μόνο νερό ή χαμομήλι!
+              </p>
             </div>
           )}
 
@@ -440,14 +417,21 @@ export function App() {
 
         </div>
 
-        {/* 4. ΟΛΟΚΛΗΡΟ ΤΟ ΜΕΝΟΥ ΤΗΣ ΗΜΕΡΑΣ (ΠΡΟΒΟΛΗ & ΑΛΛΑΓΗ ΗΜΕΡΑΣ) */}
+        {/* 4. ΕΞΥΠΝΟ ΜΕΝΟΥ: ΚΡΥΒΕΙ ΤΑ ΓΕΥΜΑΤΑ ΠΟΥ ΕΧΟΥΝ ΗΔΗ ΠΕΡΑΣΕΙ */}
         <div className="glass-card rounded-2xl p-5 border border-slate-800 bg-slate-900/70 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
             <div className="flex items-center space-x-2">
               <Utensils className="w-5 h-5 text-amber-400" />
-              <h2 className="text-base font-bold text-white">
-                Πλήρες Μενού Ημέρας: <span className="text-emerald-400">{selectedDay}</span>
-              </h2>
+              <div>
+                <h2 className="text-base font-bold text-white">
+                  {isSelectedDayToday ? `Φαγητό για Σήμερα (${selectedDay})` : `Πλήρες Μενού για ${selectedDay}`}
+                </h2>
+                {isSelectedDayToday && (
+                  <p className="text-xs text-emerald-400">
+                    *Εμφανίζονται αυτόματα μόνο τα γεύματα της ώρας.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Quick Day Selector Pills */}
@@ -455,7 +439,10 @@ export function App() {
               {ORDERED_DAYS.map(day => (
                 <button
                   key={day}
-                  onClick={() => setSelectedDay(day)}
+                  onClick={() => {
+                    setSelectedDay(day);
+                    setShowPastMeals(false);
+                  }}
                   className={`px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${
                     selectedDay === day 
                       ? 'bg-emerald-500 text-slate-950 shadow' 
@@ -468,57 +455,126 @@ export function App() {
             </div>
           </div>
 
+          {/* MEAL CARDS WITH SMART TIME-FILTER */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             
-            {/* 12:00 Μεσημεριανό */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <span className="text-xs font-black uppercase text-amber-400 block">
-                ☀️ 12:00 Μεσημεριανό:
-              </span>
-              {lunchMeal ? (
-                <>
+            {/* 12:00 Μεσημεριανό (Κρύβεται αυτόματα αν είναι μετά τις 16:00 σήμερα, εκτός αν πατηθεί εμφάνιση) */}
+            {(!isLunchPast || showPastMeals || !isSelectedDayToday) ? (
+              lunchMeal && (
+                <div className={`p-4 rounded-xl border space-y-2 ${
+                  isSelectedDayToday && currentHour >= 12 && currentHour < 16
+                    ? 'bg-emerald-950/30 border-emerald-500/50 ring-1 ring-emerald-500/30'
+                    : 'bg-slate-950 border-slate-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase text-amber-400 block">
+                      ☀️ 12:00 Μεσημεριανό:
+                    </span>
+                    {isSelectedDayToday && currentHour >= 12 && currentHour < 16 && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-extrabold text-[10px]">
+                        ΤΩΡΑ
+                      </span>
+                    )}
+                    {isLunchPast && isSelectedDayToday && (
+                      <span className="text-[10px] text-slate-500 font-bold">
+                        (Πέρασε)
+                      </span>
+                    )}
+                  </div>
                   <h4 className="font-bold text-white text-sm">{lunchMeal.title}</h4>
                   <p className="text-slate-300 leading-relaxed">{lunchMeal.description}</p>
                   <p className="text-[11px] text-emerald-400 font-semibold pt-1">
                     {lunchMeal.protein_g}g πρωτεΐνη • {lunchMeal.carbs_g}g υδατ. • {lunchMeal.calories} kcal
                   </p>
-                </>
-              ) : <p className="text-slate-400">Κοτόπουλο ή Σολομός + Σαλάτα</p>}
-            </div>
+                </div>
+              )
+            ) : null}
 
-            {/* 16:00 Σνακ */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <span className="text-xs font-black uppercase text-teal-400 block">
-                ☕ 16:00 Σνακ:
-              </span>
-              {snackMeal ? (
-                <>
+            {/* 16:00 Σνακ (Κρύβεται αυτόματα αν είναι μετά τις 20:00 σήμερα) */}
+            {(!isSnackPast || showPastMeals || !isSelectedDayToday) ? (
+              snackMeal && (
+                <div className={`p-4 rounded-xl border space-y-2 ${
+                  isSelectedDayToday && currentHour >= 16 && currentHour < 20
+                    ? 'bg-teal-950/30 border-teal-500/50 ring-1 ring-teal-500/30'
+                    : 'bg-slate-950 border-slate-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase text-teal-400 block">
+                      ☕ 16:00 Σνακ:
+                    </span>
+                    {isSelectedDayToday && currentHour >= 16 && currentHour < 20 && (
+                      <span className="px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-extrabold text-[10px]">
+                        ΤΩΡΑ
+                      </span>
+                    )}
+                    {isSnackPast && isSelectedDayToday && (
+                      <span className="text-[10px] text-slate-500 font-bold">
+                        (Πέρασε)
+                      </span>
+                    )}
+                  </div>
                   <h4 className="font-bold text-white text-sm">{snackMeal.title}</h4>
                   <p className="text-slate-300 leading-relaxed">{snackMeal.description}</p>
                   <p className="text-[11px] text-teal-400 font-semibold pt-1">
                     {snackMeal.protein_g}g πρωτεΐνη • {snackMeal.calories} kcal
                   </p>
-                </>
-              ) : <p className="text-slate-400">Γιαούρτι 2% + 12 αμύγδαλα</p>}
-            </div>
+                </div>
+              )
+            ) : null}
 
             {/* 20:00 Βραδινό */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <span className="text-xs font-black uppercase text-indigo-400 block">
-                🌙 20:00 Βραδινό:
-              </span>
-              {dinnerMeal ? (
-                <>
+            {(!isDinnerPast || showPastMeals || !isSelectedDayToday) ? (
+              dinnerMeal && (
+                <div className={`p-4 rounded-xl border space-y-2 ${
+                  isSelectedDayToday && currentHour >= 20 && currentHour < 22
+                    ? 'bg-indigo-950/30 border-indigo-500/50 ring-1 ring-indigo-500/30'
+                    : 'bg-slate-950 border-slate-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase text-indigo-400 block">
+                      🌙 20:00 Βραδινό:
+                    </span>
+                    {isSelectedDayToday && currentHour >= 20 && currentHour < 22 && (
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-extrabold text-[10px]">
+                        ΤΩΡΑ
+                      </span>
+                    )}
+                    {isDinnerPast && isSelectedDayToday && (
+                      <span className="text-[10px] text-slate-500 font-bold">
+                        (Πέρασε)
+                      </span>
+                    )}
+                  </div>
                   <h4 className="font-bold text-white text-sm">{dinnerMeal.title}</h4>
                   <p className="text-slate-300 leading-relaxed">{dinnerMeal.description}</p>
                   <p className="text-[11px] text-indigo-400 font-semibold pt-1">
                     {dinnerMeal.protein_g}g πρωτεΐνη • {dinnerMeal.carbs_g}g υδατ. • {dinnerMeal.calories} kcal
                   </p>
-                </>
-              ) : <p className="text-slate-400">Ομελέτα με 3 αυγά + πράσινη σαλάτα</p>}
-            </div>
+                </div>
+              )
+            ) : null}
 
           </div>
+
+          {/* Toggle button to see past meals if needed */}
+          {isSelectedDayToday && (isLunchPast || isSnackPast || isDinnerPast) && (
+            <div className="pt-2 flex items-center justify-between text-xs text-slate-500 border-t border-slate-800/60">
+              <span>
+                {isDinnerPast 
+                  ? 'Τα γεύματα της ημέρας ολοκληρώθηκαν.' 
+                  : isSnackPast 
+                  ? 'Το μεσημεριανό και το σνακ έχουν περάσει.' 
+                  : 'Το μεσημεριανό έχει περάσει.'}
+              </span>
+              <button
+                onClick={() => setShowPastMeals(!showPastMeals)}
+                className="flex items-center space-x-1 text-slate-400 hover:text-emerald-400 font-semibold transition"
+              >
+                {showPastMeals ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                <span>{showPastMeals ? 'Απόκρυψη περασμένων γευμάτων' : 'Προβολή όλων των γευμάτων'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 5. ΑΜΕΣΗ ΑΝΑΖΗΤΗΣΗ ΤΡΟΦΗΣ */}
