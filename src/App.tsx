@@ -48,6 +48,48 @@ export function App() {
   const [waterMl, setWaterMl] = useState<number>(0);
   const [foodLog, setFoodLog] = useState<FoodLogEntry[]>([]);
   const [addQuantity, setAddQuantity] = useState<string>('100');
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState<boolean>(false);
+  const [showInstallGuide, setShowInstallGuide] = useState<boolean>(false);
+
+  // Check PWA Standalone & Listen for Install Prompt
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    if (isStandalone) {
+      setIsInstalled(true);
+    }
+
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+      }
+      setInstallPrompt(null);
+    } else {
+      setShowInstallGuide(prev => !prev);
+    }
+  };
 
   // Live Time Intelligence
   const [now, setNow] = useState<Date>(new Date());
@@ -296,11 +338,46 @@ export function App() {
             </p>
           </div>
           
-          <div className="text-right">
-            <span className="text-xs text-neutral-400 block font-medium">Στόχος βάρους</span>
-            <span className="text-xs font-bold text-emerald-400">105kg ➔ 90kg</span>
+          <div className="flex items-center space-x-3">
+            {!isInstalled && (
+              <button
+                onClick={handleInstallClick}
+                className="px-2.5 py-1 rounded-md bg-neutral-900 hover:bg-neutral-800 border border-emerald-500/50 text-emerald-400 text-xs font-semibold transition flex items-center space-x-1"
+                title="Εγκατάσταση εφαρμογής στο κινητό"
+              >
+                <span>Εγκατάσταση</span>
+              </button>
+            )}
+
+            <div className="text-right">
+              <span className="text-xs text-neutral-400 block font-medium">Στόχος βάρους</span>
+              <span className="text-xs font-bold text-emerald-400">105kg ➔ 90kg</span>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Install Guide Banner */}
+        {showInstallGuide && !isInstalled && (
+          <div className="border-t border-neutral-800 bg-[#0d0d0d] px-4 py-3 text-xs">
+            <div className="max-w-4xl mx-auto flex items-start justify-between">
+              <div className="space-y-1">
+                <span className="font-bold text-white block">Πώς να το εγκαταστήσεις στο κινητό σου:</span>
+                <p className="text-neutral-300">
+                  <strong>Android / Chrome:</strong> Πάτησε τις 3 τελείες (⋮) πάνω δεξιά στον browser και επίλεξε «Εγκατάσταση εφαρμογής» ή «Προσθήκη στην αρχική οθόνη».
+                </p>
+                <p className="text-neutral-300">
+                  <strong>iPhone / Safari:</strong> Πάτησε το κουμπί Κοινοποίησης (τετράγωνο με βελάκι προς τα πάνω) και επίλεξε «Προσθήκη στην οθόνη αφετηρίας».
+                </p>
+              </div>
+              <button
+                onClick={() => setShowInstallGuide(false)}
+                className="text-neutral-500 hover:text-white text-base font-bold ml-3"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
