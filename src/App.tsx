@@ -16,11 +16,9 @@ import {
   Coffee, 
   Moon, 
   Sun,
-  Database,
   Eye,
   EyeOff
 } from 'lucide-react';
-import { SupabaseSetupModal } from './components/SupabaseSetupModal';
 
 const DAY_NAMES: MealRecipe['day'][] = [
   'Κυριακή',
@@ -202,13 +200,12 @@ export function App() {
             </div>
           </div>
           
-          <button
-            onClick={() => setIsSupabaseModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition"
-          >
-            <Database className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Supabase DB</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span>
+              Live Sync
+            </span>
+          </div>
         </div>
       </header>
 
@@ -762,12 +759,6 @@ export function App() {
         </div>
 
       </main>
-
-      {/* Supabase Modal */}
-      <SupabaseSetupModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
-      />
 
     </div>
   );
