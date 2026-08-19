@@ -3,15 +3,20 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
   body {
     @apply bg-slate-950 text-slate-100 font-sans;
+    overflow-x: hidden;
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -27,31 +32,19 @@
   background: #334155;
 }
 
+/* Hide scrollbar for clean horizontal scrolls on mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Glassmorphism cards */
 .glass-card {
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-card-hover {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-card-hover:hover {
-  border-color: rgba(52, 211, 153, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(16, 185, 129, 0.1);
-}
-
-.glow-green {
-  box-shadow: 0 0 20px -5px rgba(34, 197, 94, 0.25);
-}
-
-.glow-orange {
-  box-shadow: 0 0 20px -5px rgba(249, 115, 22, 0.25);
-}
-
-.glow-blue {
-  box-shadow: 0 0 20px -5px rgba(59, 130, 246, 0.25);
 }
