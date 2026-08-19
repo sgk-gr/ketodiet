@@ -54,7 +54,11 @@ async function sendMessage(chatId, text) {
         parse_mode: 'HTML',
       }),
     });
-    return await res.json();
+    const json = await res.json();
+    if (!json.ok) {
+      console.error('[Telegram Bot] Send message API error:', json);
+    }
+    return json;
   } catch (err) {
     console.error('[Telegram Bot] Error sending message:', err.message);
   }
@@ -69,7 +73,7 @@ function renderProgressBar(current, max = 3000, length = 10) {
   return `[${bar}] ${percent}%`;
 }
 
-// Calculate ETA to reach 90kg (healthy pace: ~0.75kg / week)
+// Calculate ETA to reach 90kg
 function calculateGoalETA(currentWeight) {
   const remaining = Math.max(0, currentWeight - 90.0);
   if (remaining === 0) return 'Στόχος επιτεύχθηκε!';
@@ -82,7 +86,10 @@ function calculateGoalETA(currentWeight) {
   return `~${formattedDate} (σε περίπου ${weeksNeeded} εβδομάδες με ρυθμό 0.75kg/εβδομάδα)`;
 }
 
-// Database Helpers
+// ==========================================
+// SUPABASE DATABASE HELPERS
+// ==========================================
+
 async function getTodayWater() {
   const today = new Date().toISOString().split('T')[0];
   try {
@@ -106,12 +113,22 @@ async function addTodayWater(mlToAdd) {
   const newWater = Math.max(0, Math.min(6000, current + mlToAdd));
   
   try {
+    const { data: existing } = await supabase
+      .from('spiros_daily_logs')
+      .select('*')
+      .eq('date', today)
+      .single();
+
     await supabase.from('spiros_daily_logs').upsert({
-      id: 'daily-' + today,
+      id: existing?.id || 'daily-' + today,
       date: today,
       water_ml: newWater,
-      fasting_hours: 16,
-      lumbar_feeling: 'good'
+      fasting_hours: existing?.fasting_hours ?? 16,
+      exercise_minutes: existing?.exercise_minutes ?? 20,
+      exercise_type: existing?.exercise_type ?? 'recumbent_bike',
+      lumbar_feeling: existing?.lumbar_feeling ?? 'good',
+      completed_habits: existing?.completed_habits ?? [],
+      notes: existing?.notes ?? 'Καλή ενέργεια και καμία ενόχληση στη μέση.',
     }, { onConflict: 'date' });
   } catch (err) {
     console.error('Supabase water save error:', err.message);
@@ -122,19 +139,28 @@ async function addTodayWater(mlToAdd) {
 async function resetTodayWater() {
   const today = new Date().toISOString().split('T')[0];
   try {
+    const { data: existing } = await supabase
+      .from('spiros_daily_logs')
+      .select('*')
+      .eq('date', today)
+      .single();
+
     await supabase.from('spiros_daily_logs').upsert({
-      id: 'daily-' + today,
+      id: existing?.id || 'daily-' + today,
       date: today,
       water_ml: 0,
-      fasting_hours: 16,
-      lumbar_feeling: 'good'
+      fasting_hours: existing?.fasting_hours ?? 16,
+      exercise_minutes: existing?.exercise_minutes ?? 20,
+      exercise_type: existing?.exercise_type ?? 'recumbent_bike',
+      lumbar_feeling: existing?.lumbar_feeling ?? 'good',
+      completed_habits: existing?.completed_habits ?? [],
+      notes: existing?.notes ?? 'Καλή ενέργεια και καμία ενόχληση στη μέση.',
     }, { onConflict: 'date' });
   } catch (err) {
     console.error('Supabase water reset error:', err.message);
   }
 }
 
-// Food Database Helpers for Supabase
 async function getTodayFoodLogs() {
   const today = new Date().toISOString().split('T')[0];
   try {
@@ -211,7 +237,12 @@ async function clearTodayFoodLogs() {
       id: existing?.id || 'daily-' + today,
       date: today,
       water_ml: existing?.water_ml ?? 0,
+      fasting_hours: existing?.fasting_hours ?? 16,
+      exercise_minutes: existing?.exercise_minutes ?? 20,
+      exercise_type: existing?.exercise_type ?? 'recumbent_bike',
+      lumbar_feeling: existing?.lumbar_feeling ?? 'good',
       completed_habits: [],
+      notes: existing?.notes ?? 'Καλή ενέργεια και καμία ενόχληση στη μέση.',
     }, { onConflict: 'date' });
   } catch (err) {
     console.error('Supabase food clear error:', err.message);
@@ -234,25 +265,25 @@ async function saveWeight(weightKg) {
   }
 }
 
-// Parse Water Input from Greek natural text
+// ==========================================
+// PARSERS
+// ==========================================
+
 function parseWaterAmount(text) {
   const lower = text.toLowerCase().trim();
   
-  // 1 λίτρο, 1.5L, 2l, 2 λίτρα, κτλ.
   const literMatch = lower.match(/(\d+(?:[.,]\d+)?)\s*(?:λ|λ\.|λιτρ[αο]|l|lt|liter|liters)/);
   if (literMatch) {
     const num = parseFloat(literMatch[1].replace(',', '.'));
     if (!isNaN(num) && num > 0) return Math.round(num * 1000);
   }
 
-  // 500ml, 250 ml, 750ml
   const mlMatch = lower.match(/(\d+)\s*(?:ml|μλ|μιλιλιτρ[αο])/);
   if (mlMatch) {
     const num = parseInt(mlMatch[1]);
     if (!isNaN(num) && num > 0) return num;
   }
 
-  // ποτήρια (1 ποτήρι = 250ml)
   const glassMatch = lower.match(/(\d+)\s*ποτηρ/);
   if (glassMatch) {
     const num = parseInt(glassMatch[1]);
@@ -261,22 +292,18 @@ function parseWaterAmount(text) {
   if (lower.includes('ενα ποτηρι') || lower.includes('1 ποτηρι')) return 250;
   if (lower.includes('δυο ποτηρια') || lower.includes('2 ποτηρια')) return 500;
 
-  // απλό νούμερο με λέξη "ήπια" (π.χ. "ήπια 500" ή "ηπια 1000")
   const simpleMatch = lower.match(/(?:ηπια|ήπια)\s*(\d+)/);
   if (simpleMatch) {
     const num = parseInt(simpleMatch[1]);
-    if (num <= 5) return num * 1000; // if wrote "ήπια 1" -> 1000ml
+    if (num <= 5) return num * 1000;
     return num;
   }
 
   return null;
 }
 
-// Parse Weight Input
 function parseWeightAmount(text) {
   const lower = text.toLowerCase().trim();
-  
-  // "103.5 kg", "103,5 κιλά", "ζυγίστηκα 103.2"
   const match = lower.match(/(?:ζυγιστηκα|ειμαι|βαρος|κιλα|κιλά)?\s*(\d{2,3}(?:[.,]\d+)?)\s*(?:kg|κιλα|κιλά)?/);
   if (match) {
     const num = parseFloat(match[1].replace(',', '.'));
@@ -287,28 +314,24 @@ function parseWeightAmount(text) {
   return null;
 }
 
-// Parse Food Logging Input (e.g. "έφαγα 200g κοτόπουλο", "φαγητό: 150γρ σολομός")
 function parseFoodGramAndName(text) {
   const lower = text.toLowerCase().trim();
   
-  // Strip trigger prefix
   let cleaned = lower
     .replace(/^(?:εφαγα|έφαγα|φαγητο:|φαγητό:|φαγητο|φαγητό)\s*/i, '')
     .trim();
 
-  // Extract grams if present: e.g. "200g", "200 γρ", "200γρ", "200 γραμμαρια"
-  let grams = 100; // default
+  let grams = 100;
   const gramMatch = cleaned.match(/(\d+)\s*(?:g|gr|γρ|γραμμαρια|γραμμάρια|γραμμ)/);
   if (gramMatch) {
     grams = parseInt(gramMatch[1]) || 100;
     cleaned = cleaned.replace(gramMatch[0], '').trim();
   }
 
-  // Extract piece count e.g. "2 αυγα", "3 κεφτεδακια", "1 μπανανα"
   const pieceMatch = cleaned.match(/^(\d+)\s*(?:αυγ|τεμ|κομματ|φετ|μεριδ)/);
   if (pieceMatch) {
     const pieces = parseInt(pieceMatch[1]) || 1;
-    grams = pieces * 60; // ~60g per egg/piece
+    grams = pieces * 60;
     cleaned = cleaned.replace(/^\d+\s*/, '').trim();
   }
 
@@ -318,13 +341,17 @@ function parseFoodGramAndName(text) {
   return null;
 }
 
-// Message Router
+// ==========================================
+// MESSAGE ROUTER
+// ==========================================
+
 async function handleIncomingMessage(msg) {
   const chatId = msg.chat.id;
   const text = msg.text || '';
   saveSubscriber(chatId);
 
   const lower = text.toLowerCase().trim();
+  console.log(`[Telegram Bot] Message from ${chatId} (${msg.chat.first_name || 'User'}): "${text}"`);
 
   // 1. /start command
   if (lower === '/start' || lower === 'start' || lower === 'γεια' || lower === 'hello') {
@@ -344,13 +371,14 @@ async function handleIncomingMessage(msg) {
     return;
   }
 
-  // 2. Clear or Show Food Log
+  // 2. Clear Food Log
   if (lower.includes('σβησε φαγητ') || lower.includes('μηδενισε φαγητ') || lower.includes('σβήσε φαγητά') || lower.includes('καθαρισε φαγητ')) {
     await clearTodayFoodLogs();
     await sendMessage(chatId, `<b>Τα σημερινά φαγητά μηδενίστηκαν!</b>\nΌλα τα macros καθάρισαν και στο Dashboard.`);
     return;
   }
 
+  // 3. What Did I Eat Today?
   if (lower === 'τι εφαγα' || lower === 'τι έφαγα' || lower === 'φαγητα' || lower === 'φαγητά') {
     const logs = await getTodayFoodLogs();
     if (logs.length === 0) {
@@ -378,7 +406,7 @@ async function handleIncomingMessage(msg) {
     return;
   }
 
-  // 3. Log Food via Telegram
+  // 4. Log Food
   if (lower.startsWith('εφαγα') || lower.startsWith('έφαγα') || lower.startsWith('φαγητο:') || lower.startsWith('φαγητό:')) {
     const parsed = parseFoodGramAndName(text);
     if (parsed) {
@@ -413,14 +441,14 @@ async function handleIncomingMessage(msg) {
     }
   }
 
-  // 4. Reset or Subtract water
+  // 5. Reset Water
   if (lower.includes('μηδενισ') || lower.includes('σβησε νερο') || lower.includes('σβήσε νερό') || lower.includes('reset') || lower === 'σβησε' || lower === 'σβήσε') {
     await resetTodayWater();
     await sendMessage(chatId, `<b>Το νερό της ημέρας μηδενίστηκε (0.00 / 3.00 L)!</b>\nΈτοιμο για νέα καταγραφή.`);
     return;
   }
 
-  // 5. Check for Water logging or subtraction
+  // 6. Water Logging
   const isNegative = lower.includes('-') || lower.includes('αφαιρεσε') || lower.includes('αφαίρεσε');
   const waterMl = parseWaterAmount(text);
   if (waterMl) {
@@ -439,7 +467,7 @@ async function handleIncomingMessage(msg) {
     return;
   }
 
-  // 6. Check for Weight logging
+  // 7. Weight Logging
   const weightVal = parseWeightAmount(text);
   if (weightVal && (lower.includes('κιλ') || lower.includes('kg') || lower.includes('ζυγ') || text.length <= 6)) {
     await saveWeight(weightVal);
@@ -459,7 +487,7 @@ async function handleIncomingMessage(msg) {
     return;
   }
 
-  // 7. Food question / Menu
+  // 8. Menu Advice
   if (lower.includes('φαγητ') || lower.includes('μενού') || lower.includes('μενου') || lower.includes('τι να φαω') || lower.includes('τι να φάω')) {
     const nowHour = new Date().getHours();
     let mealAdvice = '';
@@ -492,11 +520,13 @@ async function handleIncomingMessage(msg) {
   );
 }
 
-// Scheduled Periodic Reminders Engine
+// ==========================================
+// SCHEDULER & POLLING
+// ==========================================
+
 function startReminderScheduler() {
   console.log('[Telegram Bot] Reminder scheduler initialized.');
 
-  // Track sent reminders to avoid duplicates in the same hour
   let lastWaterReminderHour = -1;
   let lastMealReminderHour = -1;
 
@@ -508,7 +538,6 @@ function startReminderScheduler() {
 
     if (subscribers.length === 0) return;
 
-    // 1. Meal Window Reminders
     if (currentMinute === 0 && currentHour !== lastMealReminderHour) {
       lastMealReminderHour = currentHour;
 
@@ -536,7 +565,6 @@ function startReminderScheduler() {
       }
     }
 
-    // 2. Random/Periodic Water Reminder (every 2.5 - 3 hours between 09:00 and 21:00)
     const isDaytime = currentHour >= 9 && currentHour <= 21;
     const hoursSinceLastWater = currentHour - lastWaterReminderHour;
 
@@ -557,15 +585,14 @@ function startReminderScheduler() {
       }
     }
 
-  }, 30 * 1000); // check every 30 seconds
+  }, 30 * 1000);
 }
 
-// Telegram Long Polling Engine
 let lastUpdateId = 0;
 
 async function pollUpdates() {
   try {
-    const res = await fetch(`${TELEGRAM_API}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`);
+    const res = await fetch(`${TELEGRAM_API}/getUpdates?offset=${lastUpdateId + 1}&timeout=10`);
     const data = await res.json();
 
     if (data.ok && Array.isArray(data.result)) {
@@ -579,18 +606,13 @@ async function pollUpdates() {
   } catch (err) {
     // Network or timeout, retry
   }
-  setTimeout(pollUpdates, 1000);
+  setTimeout(pollUpdates, 500);
 }
-
-// Start Bot
-console.log('=============================================');
-console.log('🤖 Spiros Telegram Bot Service (@sgkdigital_bot)');
-console.log('=============================================');
 
 async function init() {
   try {
     await fetch(`${TELEGRAM_API}/deleteWebhook?drop_pending_updates=false`);
-    console.log('[Telegram Bot] Webhook cleared, starting polling.');
+    console.log('[Telegram Bot] Webhook deleted successfully.');
   } catch (err) {
     console.warn('[Telegram Bot] Webhook clear error:', err.message);
   }
@@ -598,4 +620,7 @@ async function init() {
   startReminderScheduler();
 }
 
+console.log('=============================================');
+console.log('🤖 Spiros Telegram Bot Service (@sgkdigital_bot)');
+console.log('=============================================');
 init();
