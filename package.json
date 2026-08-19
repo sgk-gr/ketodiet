@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host --port 3000",
     "build": "tsc && vite build",
-    "preview": "vite preview --host --port 3000"
+    "preview": "vite preview",
+    "bot": "node bot.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
