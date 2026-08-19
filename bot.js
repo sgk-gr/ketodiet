@@ -1,3 +1,6 @@
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
@@ -583,5 +586,16 @@ async function pollUpdates() {
 console.log('=============================================');
 console.log('🤖 Spiros Telegram Bot Service (@sgkdigital_bot)');
 console.log('=============================================');
-pollUpdates();
-startReminderScheduler();
+
+async function init() {
+  try {
+    await fetch(`${TELEGRAM_API}/deleteWebhook?drop_pending_updates=false`);
+    console.log('[Telegram Bot] Webhook cleared, starting polling.');
+  } catch (err) {
+    console.warn('[Telegram Bot] Webhook clear error:', err.message);
+  }
+  pollUpdates();
+  startReminderScheduler();
+}
+
+init();
