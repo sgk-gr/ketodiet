@@ -1,17 +1,17 @@
 import dns from 'dns';
 dns.setDefaultResultOrder('ipv4first');
 
-import { createClient } from '@supabase/supabase-js';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createClient } from '@supabase/supabase-js';
 import { searchSmartFoods, analyzeFoodDynamically } from './src/data/foodClassifier.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const TELEGRAM_TOKEN = '8603311936:AAG1e-zxKzU48elsr-t7dGyvQCSfvt0E32g';
-const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://xrmvingehhiymchoggka.supabase.co';
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhybXZpbmdlaGhpeW1jaG9nZ2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjkzMTEsImV4cCI6MjA5MDk0NTMxMX0.UDvGORYRXdo1IKTrduIJYJEfgNuli0LSpAC9njm7I9Q';
@@ -22,6 +22,67 @@ const CONFIG_FILE = path.join(__dirname, 'telegram_config.json');
 
 // Store recent conversation history for each chat
 const chatHistories = new Map();
+
+// Native HTTPS Telegram Request Helper (100% Reliable across Windows IPv4/IPv6 networks)
+function telegramApi(methodName, data = null) {
+  return new Promise((resolve, reject) => {
+    const payload = data ? JSON.stringify(data) : null;
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${TELEGRAM_TOKEN}/${methodName}`,
+      method: payload ? 'POST' : 'GET',
+      family: 4,
+      headers: {
+        ...(payload ? {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        } : {})
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          resolve({ ok: false, body });
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+// Native HTTPS Telegram File Download Helper
+function downloadTelegramFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/file/bot${TELEGRAM_TOKEN}/${filePath}`,
+      method: 'GET',
+      family: 4
+    };
+
+    const req = https.request(options, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        resolve(buffer);
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.end();
+  });
+}
 
 // Load or save active chat IDs
 function getSubscribers() {
@@ -48,30 +109,21 @@ function saveSubscriber(chatId) {
 // Send Message Helper with HTML formatting and plain text fallback
 async function sendMessage(chatId, text) {
   try {
-    const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-      }),
+    const res = await telegramApi('sendMessage', {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
     });
-    const json = await res.json();
-    if (!json.ok) {
+
+    if (!res.ok) {
       // If HTML parsing failed due to special characters, send as plain text
       const cleanText = text.replace(/<[^>]*>/g, '');
-      const retryRes = await fetch(`${TELEGRAM_API}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: cleanText,
-        }),
+      return await telegramApi('sendMessage', {
+        chat_id: chatId,
+        text: cleanText,
       });
-      return await retryRes.json();
     }
-    return json;
+    return res;
   } catch (err) {
     console.error('[Telegram Bot] Error sending message:', err.message);
   }
@@ -292,20 +344,15 @@ async function addWeightLog(weight) {
   }
 }
 
-// Download Telegram photo as Base64 data URL
+// Download Telegram photo as Base64 data URL via native HTTPS
 async function getTelegramPhotoBase64(fileId) {
   try {
-    const fileRes = await fetch(`${TELEGRAM_API}/getFile?file_id=${fileId}`);
-    const fileData = await fileRes.json();
+    const fileData = await telegramApi('getFile', { file_id: fileId });
     if (!fileData.ok || !fileData.result?.file_path) {
       throw new Error('Failed to retrieve file path from Telegram');
     }
     const filePath = fileData.result.file_path;
-    const downloadUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${filePath}`;
-    
-    const imgRes = await fetch(downloadUrl);
-    const arrayBuffer = await imgRes.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const buffer = await downloadTelegramFile(filePath);
     const base64 = buffer.toString('base64');
     const mimeType = filePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
     return `data:${mimeType};base64,${base64}`;
@@ -360,7 +407,7 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
   * ΣΗΜΑΣΙΑ ΝΕΡΟΥ: 3.0 Λίτρα/ημέρα για ενυδάτωση των μεσοσπονδύλιων δίσκων ώστε να μην τρίβονται τα νεύρα.
 - ΔΙΑΤΡΟΦΗ: Low-Carb 16:8 Διαλειμματική Νηστεία (Νηστεία 20:00 - 12:00 | Παράθυρο Φαγητού 12:00 - 20:00).
   * Υδατάνθρακες: Στόχος < 20-30g net carbs/ημέρα (ΜΟΝΟ από πράσινα λαχανικά/σαλάτες).
-  * Απαγορεύονται: Ψωμί, ζυμαρικά, ρύζι, πατάτες, ζάχαρη, γλυκά, αναψυκτικά, χυμοί, αλκοόλ.
+  * Απαγορεύονται: Ψωμί, ζυμαρικά, ρύζι, πατάτες, ζάχαρη, γλυκά, αναψυκτικά, χυμοί, αλκοόλ, φρούτα με υψηλό γλυκαιμικό δείκτη (όπως μπανάνες, καρπούζι, σταφύλια).
   * Επιτρέπονται: Μοσχάρι, κοτόπουλο, γαλοπούλα, χοιρινό, ψάρια (σολομός, τσιπούρα, λαβράκι, τόνος), αυγά, ελαιόλαδο, φέτα, πράσινα λαχανικά (μπρόκολο, σπαράγγια, μαρούλι, αγγούρι, κολοκυθάκια, μανιτάρια).
 
 [ΤΡΕΧΟΥΣΑ ΚΑΤΑΣΤΑΣΗ ΣΗΜΕΡΑ]:
@@ -369,13 +416,13 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
 - Σημερινά γεύματα:\n${foodSummaryText}
 - Σύνολο Macros σήμερα: ${todayMacros.calories} kcal | Πρωτεΐνη: ${todayMacros.protein}g | Υδατάνθρακες: ${todayMacros.carbs}g | Λιπαρά: ${todayMacros.fat}g
 
-[ΕΙΔΙΚΗ ΟΔΗΓΙΑ ΓΙΑ ΦΩΤΟΓΡΑΦΙΕΣ ΠΙΑΤΟΥ (GPT-4o-mini Vision)]:
-Όταν ο Σπύρος στέλνει φωτογραφία του πιάτου του:
-1. Αναγνώρισε ακριβώς όλα τα τρόφιμα/συστατικά που βλέπεις στο πιάτο.
-2. Εκτίμησε με ακρίβεια τα γραμμάρια του κάθε στοιχείου στο πιάτο (π.χ. ~200g στήθος κοτόπουλο, ~150g πράσινη σαλάτα με ελαιόλαδο).
+[ΕΙΔΙΚΗ ΟΔΗΓΙΑ ΓΙΑ ΦΩΤΟΓΡΑΦΙΕΣ ΠΙΑΤΟΥ / ΤΡΟΦΙΜΩΝ (GPT-4o-mini Vision)]:
+Όταν ο Σπύρος στέλνει φωτογραφία του πιάτου ή τροφίμων του:
+1. Αναγνώρισε ακριβώς όλα τα τρόφιμα/συστατικά που βλέπεις στη φωτογραφία.
+2. Εκτίμησε με ακρίβεια τα γραμμάρια του κάθε στοιχείου (π.χ. ~200g κοτόπουλο, ~150g πράσινη σαλάτα ή π.χ. 3 μπανάνες ~350g).
 3. Υπολόγισε τα συνολικά macros: Θερμίδες (kcal), Πρωτεΐνη (g), Υδατάνθρακες (g), Λιπαρά (g).
-4. Κάνε αξιολόγηση: Πες αν το πιάτο είναι OK για Low-Carb Keto & τη μέση του, ή αν πρέπει να αφαιρέσει κάτι (π.χ. αν έχει πατάτες/ρύζι/ψωμί/σάλτσες ζάχαρης) ή να προσθέσει κάτι (π.χ. παραπάνω πρωτεΐνη ή ελαιόλαδο/λαχανικά).
-5. Στο ΤΕΛΟΣ του μηνύματός σου, πρόσθεσε ΠΑΝΤΑ το tag καταγραφής:
+4. Κάνε αξιολόγηση: Πες αν το τρόφιμο/πιάτο είναι OK για Low-Carb Keto & τη μέση του, ή αν πρέπει να αφαιρέσει κάτι (π.χ. αν έχει πατάτες/ρύζι/ψωμί/μπανάνες/σάλτσες ζάχαρης) ή να προσθέσει κάτι (π.χ. παραπάνω πρωτεΐνη ή ελαιόλαδο/λαχανικά).
+5. Αν είναι φαγητό/γεύμα που τρώει, πρόσθεσε στο ΤΕΛΟΣ το tag καταγραφής:
    [ACTION:LOG_FOOD:{"name":"Σύντομο Καθαρό Όνομα Πιάτου","grams":συνολικά_γραμμάρια,"calories":θερμίδες,"protein":πρωτεΐνη,"carbs":υδατάνθρακες,"fat":λιπαρά}]
 
 [ΚΑΝΟΝΕΣ ΓΙΑ ΚΕΙΜΕΝΟ]:
@@ -394,8 +441,8 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
   let userMessagePayloadContent;
   if (photoBase64) {
     const promptText = userMessage 
-      ? `Ανάλυσε τη φωτογραφία του πιάτου μου. Σημείωση: ${userMessage}`
-      : `Ανάλυσε αυτή τη φωτογραφία του πιάτου μου: εντόπισε τι τρόφιμα περιέχει, εκτίμησε τα γραμμάρια, υπολόγισε θερμίδες και macros, πες μου αν είναι OK ή τι να αλλάξω, και κατέγραψέ το.`;
+      ? `Ανάλυσε τη φωτογραφία. Σημείωση χρήστη: ${userMessage}`
+      : `Ανάλυσε αυτή τη φωτογραφία: εντόπισε τι τρόφιμα περιέχει, εκτίμησε τα γραμμάρια, υπολόγισε θερμίδες και macros, πες μου αν είναι OK για Keto ή τι να αλλάξω, και κατέγραψέ το.`;
 
     userMessagePayloadContent = [
       { type: 'text', text: promptText },
@@ -481,7 +528,8 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
         'κρασί', 'κρασι', 'αναψυκτικό', 'αναψυκτικο', 'coca', 'κόκα', 'κολα', 'κόλα', 'τυρί', 'τυρι',
         'φέτα', 'φετα', 'κοτόπουλο', 'κοτοπουλο', 'κρέας', 'κρεας', 'μπριζόλα', 'μπριζολα', 'αυγό',
         'αυγο', 'αυγά', 'αυγα', 'ομελέτα', 'ομελετα', 'σολομός', 'σολομος', 'ψάρι', 'ψαρι', 'σαλάτα', 'σαλατα',
-        'πατατάκια', 'πατατακια', 'πατάτες', 'πατατες', 'ψωμί', 'ψωμι', 'πίτσα', 'πιτσα', 'μπιφτέκι', 'μπιφτεκι'
+        'πατατάκια', 'πατατακια', 'πατάτες', 'πατατες', 'ψωμί', 'ψωμι', 'πίτσα', 'πιτσα', 'μπιφτέκι', 'μπιφτεκι',
+        'μπανάνα', 'μπανανα', 'μπανάνες', 'μπανανες'
       ];
       const hasFoodOrSugar = foodWords.some(w => normalizedTokens.includes(w));
       const isWaterMention = /νερό|νερο|water|ποτήρι|ποτηρι|ποτυρι|μπουκάλι|μπουκαλι/i.test(lowerUserMsg);
@@ -656,9 +704,8 @@ async function startBot() {
 
   // Clean stale webhooks
   try {
-    const res = await fetch(`${TELEGRAM_API}/deleteWebhook?drop_pending_updates=false`);
-    const data = await res.json();
-    console.log('[Telegram Bot] Webhook cleanup:', data.ok ? 'SUCCESS' : data.description);
+    const res = await telegramApi('deleteWebhook', { drop_pending_updates: false });
+    console.log('[Telegram Bot] Webhook cleanup:', res.ok ? 'SUCCESS' : res.description);
   } catch (err) {
     console.warn('[Telegram Bot] Webhook cleanup note:', err.message);
   }
@@ -669,9 +716,7 @@ async function startBot() {
 
   while (true) {
     try {
-      const url = `${TELEGRAM_API}/getUpdates?offset=${lastUpdateId + 1}&timeout=20`;
-      const res = await fetch(url);
-      const data = await res.json();
+      const data = await telegramApi(`getUpdates?offset=${lastUpdateId + 1}&timeout=20`);
 
       if (data.ok && Array.isArray(data.result)) {
         for (const update of data.result) {
@@ -688,14 +733,8 @@ async function startBot() {
               const caption = update.message.caption || '';
               console.log(`[Telegram Bot] Photo received from ${chatId} (caption: "${caption}")`);
 
-              // Send "typing..." or "upload_photo" action
-              try {
-                fetch(`${TELEGRAM_API}/sendChatAction`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ chat_id: chatId, action: 'typing' })
-                }).catch(() => {});
-              } catch {}
+              // Send "typing..." action
+              telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
 
               const photoBase64 = await getTelegramPhotoBase64(bestPhoto.file_id);
               if (photoBase64) {
@@ -733,13 +772,7 @@ async function startBot() {
               }
 
               // Send "typing..." action
-              try {
-                fetch(`${TELEGRAM_API}/sendChatAction`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ chat_id: chatId, action: 'typing' })
-                }).catch(() => {});
-              } catch {}
+              telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
 
               // Process text through AI Coach
               const aiReply = await callAiCoach(chatId, text);
