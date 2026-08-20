@@ -119,13 +119,15 @@ export function AiChatDrawer({
         content: m.message,
       }));
 
-      const res = await fetch('https://xrmvingehhiymchoggka.supabase.co/functions/v1/chat', {
+      let cleanMsg = '';
+      const res = await fetch('https://xrmvingehhiymchoggka.supabase.co/functions/v1/openai-proxy', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhybXZpbmdlaGhpeW1jaG9nZ2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjkzMTEsImV4cCI6MjA5MDk0NTMxMX0.UDvGORYRXdo1IKTrduIJYJEfgNuli0LSpAC9njm7I9Q'}`,
         },
         body: JSON.stringify({
+          model: 'gpt-4o-mini',
           messages: [
             { role: 'user', content: systemPrompt },
             { role: 'assistant', content: 'Έλαβα τις οδηγίες. Είμαι ο AI Coach του Σπύρου.' },
@@ -135,45 +137,18 @@ export function AiChatDrawer({
         }),
       });
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let rawAcc = '';
-      let aiOutput = '';
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          rawAcc += decoder.decode(value, { stream: true });
-
-          const lines = rawAcc.split('\n');
-          rawAcc = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith('0:')) {
-              const jsonPart = trimmed.substring(2);
-              try {
-                aiOutput += JSON.parse(jsonPart);
-              } catch {
-                if (jsonPart.startsWith('"') && jsonPart.endsWith('"')) {
-                  aiOutput += jsonPart.slice(1, -1);
-                } else {
-                  aiOutput += jsonPart;
-                }
-              }
-            }
-          }
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.content) {
+          cleanMsg = data.content;
+        } else if (data && data.choices && data.choices[0] && data.choices[0].message) {
+          cleanMsg = data.choices[0].message.content;
         }
       }
 
-      if (rawAcc.trim().startsWith('0:')) {
-        try {
-          aiOutput += JSON.parse(rawAcc.trim().substring(2));
-        } catch {}
+      if (!cleanMsg) {
+        cleanMsg = 'Είμαι εδώ για ό,τι χρειαστείς, Σπύρο!';
       }
-
-      let cleanMsg = aiOutput || 'Είμαι εδώ για ό,τι χρειαστείς, Σπύρο!';
 
       // Process Actions
       const waterMatch = cleanMsg.match(/\[ACTION:ADD_WATER:(\d+)\]/i);

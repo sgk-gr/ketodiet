@@ -1,44 +1,36 @@
 import dns from 'dns';
 dns.setDefaultResultOrder('ipv4first');
 
-async function testGreekStreamDecoding() {
-  const SUPABASE_URL = 'https://xrmvingehhiymchoggka.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhybXZpbmdlaGhpeW1jaG9nZ2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjkzMTEsImV4cCI6MjA5MDk0NTMxMX0.UDvGORYRXdo1IKTrduIJYJEfgNuli0LSpAC9njm7I9Q';
-
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/chat`, {
+async function testRegexDecoder() {
+  const res = await fetch('https://xrmvingehhiymchoggka.supabase.co/functions/v1/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_KEY}`
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhybXZpbmdlaGhpeW1jaG9nZ2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjkzMTEsImV4cCI6MjA5MDk0NTMxMX0.UDvGORYRXdo1IKTrduIJYJEfgNuli0LSpAC9njm7I9Q'
     },
     body: JSON.stringify({
       messages: [
-        { role: 'user', content: 'Πες μου 3 συμβουλές για τη στένωση σπονδυλικού σωλήνα και 16:8 διαλειμματική νηστεία.' }
+        { role: 'user', content: 'Ήπια καφέ φραπέ με ζάχαρη ξεχάστηκα. Τι να κάνω τώρα;' }
       ]
     })
   });
 
   const rawText = await res.text();
-  
-  // Robust parsing:
-  // Each line in the AI stream is of format: 0:"token"
-  let parsedText = '';
-  const lines = rawText.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('0:')) {
-      const jsonStr = trimmed.substring(2);
-      try {
-        parsedText += JSON.parse(jsonStr);
-      } catch {
-        // In case of escaping issues, strip outer quotes
-        parsedText += jsonStr.replace(/^"|"$/g, '');
-      }
+  console.log('RAW STREAM LENGTH:', rawText.length);
+
+  let fullText = '';
+  const tokenRegex = /0:"((?:[^"\\]|\\.)*)"/g;
+  let match;
+  while ((match = tokenRegex.exec(rawText)) !== null) {
+    try {
+      fullText += JSON.parse(`"${match[1]}"`);
+    } catch {
+      fullText += match[1];
     }
   }
 
-  console.log('--- DECODED TEXT ---');
-  console.log(parsedText);
+  console.log('--- CLEAN PARSED RESULT ---');
+  console.log(fullText);
 }
 
-testGreekStreamDecoding();
+testRegexDecoder();

@@ -339,49 +339,49 @@ async function callAiCoach(chatId, userMessage) {
   ];
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/chat`, {
+    // Call openai-proxy for 100% flawless Greek text without broken character splits
+    let aiResponse = '';
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/openai-proxy`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${SUPABASE_KEY}`
       },
-      body: JSON.stringify({ messages })
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: messages
+      })
     });
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let rawAccumulator = '';
-    let aiResponse = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      rawAccumulator += decoder.decode(value, { stream: true });
-
-      const lines = rawAccumulator.split('\n');
-      rawAccumulator = lines.pop() || '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('0:')) {
-          const jsonPart = trimmed.substring(2);
-          try {
-            aiResponse += JSON.parse(jsonPart);
-          } catch {
-            if (jsonPart.startsWith('"') && jsonPart.endsWith('"')) {
-              aiResponse += jsonPart.slice(1, -1);
-            } else {
-              aiResponse += jsonPart;
-            }
-          }
-        }
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.content) {
+        aiResponse = data.content;
+      } else if (data && data.choices && data.choices[0] && data.choices[0].message) {
+        aiResponse = data.choices[0].message.content;
       }
     }
 
-    if (rawAccumulator.trim().startsWith('0:')) {
-      try {
-        aiResponse += JSON.parse(rawAccumulator.trim().substring(2));
-      } catch {}
+    // Fallback if proxy has error
+    if (!aiResponse) {
+      const fallbackRes = await fetch(`${SUPABASE_URL}/functions/v1/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ messages })
+      });
+      const rawText = await fallbackRes.text();
+      const tokenRegex = /0:"((?:[^"\\]|\\.)*)"/g;
+      let match;
+      while ((match = tokenRegex.exec(rawText)) !== null) {
+        try {
+          aiResponse += JSON.parse(`"${match[1]}"`);
+        } catch {
+          aiResponse += match[1];
+        }
+      }
     }
 
     if (!aiResponse) {
