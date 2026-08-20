@@ -87,6 +87,12 @@ export default defineConfig({
       }
     })
   ],
+  resolve: {
+    dedupe: ['react', 'react-dom']
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'recharts']
+  },
   server: {
     host: true,
     port: 3000,

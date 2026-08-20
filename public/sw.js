@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spiros-diet-v1';
+const CACHE_NAME = 'spiros-diet-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -35,11 +35,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass-through for Supabase and Telegram API requests so data is always real-time
+  // Ignore non-http/https requests (e.g. chrome-extension://, blob:, data:)
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
+  // Pass-through for Supabase, Telegram, and Vite HMR WebSocket/dev requests
   const url = new URL(event.request.url);
   if (
     url.origin.includes('supabase.co') || 
     url.origin.includes('telegram.org') ||
+    url.pathname.includes('@vite') ||
+    url.pathname.includes('@react-refresh') ||
+    url.pathname.includes('@fs') ||
+    url.pathname.includes('node_modules') ||
     event.request.method !== 'GET'
   ) {
     return;
@@ -48,7 +57,6 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch fresh copy in background to keep cache up to date
         fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => {
@@ -68,7 +76,6 @@ self.addEventListener('fetch', (event) => {
         });
         return networkResponse;
       }).catch(() => {
-        // Offline fallback to root
         if (event.request.headers.get('accept')?.includes('text/html')) {
           return caches.match('/');
         }
