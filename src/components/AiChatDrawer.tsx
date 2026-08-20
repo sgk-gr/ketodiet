@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DataService, supabase } from '../lib/supabase';
 import { AiChatMessage, FoodLogEntry } from '../types';
-import { analyzeFoodDynamically } from '../data/foodDatabase';
+import { analyzeFoodDynamically, extractCleanFoodName } from '../data/foodDatabase';
 
 interface AiChatDrawerProps {
   isOpen: boolean;
@@ -339,28 +339,53 @@ export function AiChatDrawer({
       }
 
       // 3. Food / Beverage Action
+      const logTagMatch = (cleanMsg || '').match(/\[ACTION:LOG_FOOD:\s*(\{.*?\})\s*\]/is);
+      let foodEntry: FoodLogEntry | null = null;
+
+      if (logTagMatch) {
+        try {
+          const parsed = JSON.parse(logTagMatch[1]);
+          if (parsed && parsed.name) {
+            foodEntry = {
+              id: 'fl-' + Date.now(),
+              foodId: 'food-ai-' + Date.now(),
+              name: extractCleanFoodName(parsed.name),
+              quantity: parsed.grams || 100,
+              calories: parsed.calories || 100,
+              protein: parsed.protein || 5,
+              carbs: parsed.carbs || 2,
+              fat: parsed.fat || 2,
+              time: timeStr,
+            };
+          }
+        } catch {}
+      }
+
       const isEatingOrDrink = /έφαγα|εφαγα|ήπια|ηπια|κατανάλωσα|καταναλωσα|φαγητό|φαγητο|πρωινό|πρωινο|μεσημεριανό|μεσημεριανο|βραδινό|βραδινο|σνακ|γεύμα|γευμα/i.test(lowerUserMsg) || isSugaryDrinkOrFood;
-      if (isEatingOrDrink && !actionExecuted) {
+      if (!foodEntry && isEatingOrDrink && !actionExecuted) {
         const gramMatch = lowerUserMsg.match(/(\d+)\s*(?:g|gr|γραμμάρια|γραμμαρια)/i);
         const grams = gramMatch ? parseInt(gramMatch[1], 10) : 100;
         const analysis = analyzeFoodDynamically(text);
+        const cleanName = extractCleanFoodName(analysis.name || text);
 
-        const todayStr = new Date().toISOString().split('T')[0];
-        const entry: FoodLogEntry = {
+        foodEntry = {
           id: 'fl-' + Date.now(),
           foodId: analysis.id || ('food-' + Date.now()),
-          name: analysis.name || text.slice(0, 30),
+          name: cleanName,
           quantity: grams,
-          calories: Math.round(analysis.calories * (grams / 100)),
-          protein: Math.round(analysis.protein * (grams / 100) * 10) / 10,
-          carbs: Math.round(analysis.carbs * (grams / 100) * 10) / 10,
-          fat: Math.round(analysis.fat * (grams / 100) * 10) / 10,
+          calories: Math.round((analysis.calories || 100) * (grams / 100)),
+          protein: Math.round((analysis.protein || 5) * (grams / 100) * 10) / 10,
+          carbs: Math.round((analysis.carbs || 2) * (grams / 100) * 10) / 10,
+          fat: Math.round((analysis.fat || 2) * (grams / 100) * 10) / 10,
           time: timeStr,
         };
+      }
 
-        const updated = [...foodLogs, entry];
+      if (foodEntry) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const updated = [...foodLogs, foodEntry];
         await DataService.saveFoodLogs(todayStr, updated);
-        cleanMsg += `\n\n✅ <b>Καταγράφηκε αυτόματα στο Dashboard:</b>\n• ${entry.name} (${entry.quantity}g) - ${entry.calories} kcal, ${entry.carbs}g υδατάνθρακες`;
+        cleanMsg += `\n\n✅ <b>Καταγράφηκε αυτόματα στο Dashboard:</b>\n• ${foodEntry.name} (${foodEntry.quantity}g) - ${foodEntry.calories} kcal, ${foodEntry.carbs}g υδατάνθρακες`;
         onDataChanged();
       }
 

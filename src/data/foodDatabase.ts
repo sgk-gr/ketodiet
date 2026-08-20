@@ -223,6 +223,35 @@ export function normalizeGreek(text: string): string {
     .trim();
 }
 
+export function extractCleanFoodName(text: string): string {
+  if (!text) return '';
+  const actionStopwords = new Set([
+    'ηπια', 'ήπια', 'εφαγα', 'έφαγα', 'φαγαμε', 'φάγαμε', 'φαγα', 'φάγα', 'καταναλωσα', 'κατανάλωσα',
+    'και', 'κι', 'μαζι', 'μαζί', 'με', 'επισης', 'επίσης', 'μολις', 'μόλις',
+    'καταλαθος', 'κατά', 'λάθος', 'λαθος', 'κατεγραψε', 'κατέγραψε', 'κατεγραψέ', 'κατέγραψέ',
+    'καταγραφη', 'καταγραφή', 'σημειωσε', 'σημείωσε', 'το', 'τα', 'τον', 'την',
+    'βαλε', 'βάλε', 'βαλτο', 'βάλτο', 'βαλτε', 'βάλτε', 'βαλτα', 'βάλτα', 'προσθεσε', 'πρόσθεσε', 'γραψε', 'γράψε',
+    'θελω', 'θέλω', 'να', 'βαλεις', 'βάλεις', 'προσθεσεις', 'προσθέσεις',
+    'στην', 'εφαρμογη', 'εφαρμογή', 'στο', 'dashboard', 'πλανο', 'πλάνο', 'στγην',
+    'τωρα', 'τώρα', 'σημερα', 'σήμερα', 'χθες',
+    'ξεχαστηκα', 'ξεχάστηκα', 'ενα', 'ένα', 'μια', 'μία', 'δυο', 'δύο', 'τρια', 'τρία',
+    'λιγο', 'λίγο', 'πολυ', 'πολύ', 'παρακαλω', 'παρακαλώ', 'ευχαριστω', 'ευχαριστώ'
+  ]);
+
+  const rawWords = text
+    .replace(/[.,!?;:()]/g, ' ')
+    .replace(/\d+\s*(?:g|gr|kg|γραμμάρια|γραμμαρια|θερμίδες|θερμιδες|kcal|ml)\b/gi, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const cleanWords = rawWords.filter(w => !actionStopwords.has(w.toLowerCase()));
+  let clean = cleanWords.join(' ').trim();
+  if (!clean || clean.length < 2) {
+    clean = text.trim();
+  }
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
 // =====================================================
 // DYNAMIC AI NUTRITION & KETO ANALYZER ENGINE
 // If a food is NOT in the database, this engine intelligently
@@ -330,9 +359,11 @@ export function analyzeFoodDynamically(rawQuery: string): SmartFood {
     }
   }
 
+  const cleanedName = extractCleanFoodName(rawQuery);
+
   return {
     id: 'ai-' + Math.random().toString(36).substring(2, 9),
-    name: rawQuery.trim().charAt(0).toUpperCase() + rawQuery.trim().slice(1),
+    name: cleanedName || (rawQuery.trim().charAt(0).toUpperCase() + rawQuery.trim().slice(1)),
     category,
     status,
     calories,
