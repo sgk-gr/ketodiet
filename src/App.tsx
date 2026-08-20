@@ -336,8 +336,9 @@ export function App() {
           <div>
             <div className="flex items-center space-x-2">
               <h1 className="text-base font-bold text-white tracking-tight">Πλάνο Σπύρου</h1>
-              <span className="px-2 py-0.5 rounded bg-neutral-800 text-emerald-400 border border-neutral-700 text-[11px] font-semibold">
-                Telegram Sync Active
+              <span className="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/80 text-[11px] font-semibold flex items-center space-x-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>AI Coach Active</span>
               </span>
             </div>
             <p className="text-xs text-neutral-400 mt-0.5">
@@ -623,8 +624,8 @@ export function App() {
             </div>
 
             <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-400 flex items-center justify-between">
-              <span>Telegram Bot (@sgkdigital_bot):</span>
-              <span className="text-emerald-400 font-medium">Γράψε «ήπια 1L» για αυτόματη ενημέρωση!</span>
+              <span>💧 Ενυδάτωση:</span>
+              <span className="text-emerald-400 font-medium">Πίνε τακτικά νερό για προστασία της μέσης!</span>
             </div>
           </div>
 
@@ -956,9 +957,9 @@ export function App() {
             </div>
           )}
 
-          {/* Telegram Tip */}
-          <div className="pt-2 border-t border-neutral-800 text-[10px] text-neutral-500">
-            Σύντομα: γράψε «έφαγα 200g κοτόπουλο» στο Telegram για αυτόματη καταγραφή
+          {/* AI Coach Tip */}
+          <div className="pt-2 border-t border-neutral-800 text-[10px] text-neutral-500 flex items-center justify-between">
+            <span>Συμβουλή: Πάτησε το 💬 <b>AI Coach</b> για ανάλυση πιάτου με φωτογραφία 📸 ή αυτόματη καταγραφή.</span>
           </div>
         </div>
 
