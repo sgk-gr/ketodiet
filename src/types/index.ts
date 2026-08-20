@@ -94,5 +94,6 @@ export interface AiChatMessage {
   sender: 'user' | 'ai';
   message: string;
   created_at: string;
+  image_url?: string;
   action_data?: any;
 }

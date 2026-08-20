@@ -25,6 +25,7 @@ export function AiChatDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Load chat history from Supabase / local on mount
   useEffect(() => {
@@ -35,7 +36,7 @@ export function AiChatDrawer({
         const welcome: AiChatMessage = {
           id: 'welcome-init',
           sender: 'ai',
-          message: `👋 Γεια σου Σπύρο! Είμαι ο AI Health & Keto Coach σου (GPT-4o-mini).\n\n📸 Μπορείς να μου ανεβάσεις φωτογραφία από το πιάτο σου με το κουμπί 📸 για να το αναλύσω!\n\n💬 Ή γράψε μου ελεύθερα: «έφαγα 200g κοτόπουλο», «ήπια 500ml», «πόσο νερό έχω;» κτλ.`,
+          message: `👋 Γεια σου Σπύρο! Είμαι ο AI Health & Keto Coach σου (GPT-4o-mini).\n\n📸 Μπορείς να τραβήξεις ζωντανή φωτογραφία με την Κάμερα (📷) ή να ανεβάσεις από τη Συλλογή (🖼️) για άμεση ανάλυση πιάτου!\n\n💬 Ή γράψε μου ελεύθερα: «έφαγα 200g κοτόπουλο», «ήπια 500ml», «πόσο νερό έχω;» κτλ.`,
           created_at: new Date().toISOString(),
         };
         setMessages([welcome]);
@@ -63,15 +64,16 @@ export function AiChatDrawer({
     reader.onload = async () => {
       const base64Data = reader.result as string;
 
-      // 1. Add user photo message to UI
+      // 1. Add user photo message with visible image to UI
       const userMsg: AiChatMessage = {
         id: 'msg-photo-' + Date.now(),
         sender: 'user',
-        message: '📸 [Φωτογραφία Πιάτου]',
+        message: '📸 Φωτογραφία Πιάτου',
+        image_url: base64Data,
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, userMsg]);
-      await DataService.saveAiChatMessage({ sender: 'user', message: '📸 [Φωτογραφία Πιάτου]' });
+      await DataService.saveAiChatMessage({ sender: 'user', message: '📸 Φωτογραφία Πιάτου', image_url: base64Data });
 
       try {
         const promptText = `Είσαι ο διατροφολόγος του Σπύρου (Keto 16:8, Στένωση Σπονδυλικού Σωλήνα).
@@ -452,7 +454,16 @@ export function AiChatDrawer({
                     : 'bg-black border border-neutral-800 text-neutral-200 shadow-md'
                 }`}
               >
-                {m.message}
+                {m.image_url && (
+                  <div className="mb-2 overflow-hidden rounded-lg border border-neutral-700/80 shadow-md">
+                    <img
+                      src={m.image_url}
+                      alt="Φωτογραφία πιάτου"
+                      className="max-h-56 w-full object-cover"
+                    />
+                  </div>
+                )}
+                <div>{m.message}</div>
               </div>
             </div>
           ))}
@@ -460,7 +471,7 @@ export function AiChatDrawer({
             <div className="flex justify-start">
               <div className="rounded-xl p-3 bg-black border border-neutral-800 text-neutral-400 text-xs flex items-center space-x-2">
                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Ο AI Coach σκέφτεται...</span>
+                <span>Ο AI Coach αναλύει...</span>
               </div>
             </div>
           )}
@@ -469,6 +480,16 @@ export function AiChatDrawer({
 
         {/* Input Bar */}
         <div className="p-3 border-t border-neutral-800 bg-black">
+          {/* Hidden Camera Input (Opens camera directly on mobile/device) */}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            ref={cameraInputRef}
+            className="hidden"
+            onChange={handlePhotoSelected}
+          />
+          {/* Hidden Gallery / File Picker Input */}
           <input
             type="file"
             accept="image/*"
@@ -476,34 +497,48 @@ export function AiChatDrawer({
             className="hidden"
             onChange={handlePhotoSelected}
           />
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleSendMessage();
             }}
-            className="flex items-center space-x-2"
+            className="flex items-center space-x-1.5 sm:space-x-2"
           >
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={isLoading}
+              className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-bold transition flex items-center space-x-1"
+              title="Τράβηξε φωτογραφία με την κάμερα"
+            >
+              <span className="text-sm">📷</span>
+              <span className="hidden sm:inline text-[11px]">Κάμερα</span>
+            </button>
+
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 text-sm transition"
-              title="Ανέβασε φωτογραφία πιάτου για ανάλυση"
+              className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-bold transition flex items-center space-x-1"
+              title="Ανέβασε φωτογραφία από τη συλλογή / αρχεία"
             >
-              📸
+              <span className="text-sm">🖼️</span>
+              <span className="hidden sm:inline text-[11px]">Συλλογή</span>
             </button>
+
             <input
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Γράψε π.χ. «έφαγα 200g σολομό» ή «ήπια 500ml»..."
+              placeholder="Γράψε π.χ. «έφαγα 200g σολομό»..."
               className="flex-1 bg-[#121212] border border-neutral-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500"
               disabled={isLoading}
             />
             <button
               type="submit"
               disabled={!inputText.trim() || isLoading}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition disabled:opacity-40"
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition disabled:opacity-40 flex-shrink-0"
             >
               Αποστολή
             </button>
