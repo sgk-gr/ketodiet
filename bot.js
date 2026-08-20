@@ -26,6 +26,9 @@ const chatHistories = new Map();
 // In-memory cache for pending meals awaiting user confirmation
 const pendingFoodEntries = new Map();
 
+// In-memory tracker for the most recent food discussed/analyzed per chat
+const lastAnalyzedFoodMap = new Map();
+
 // Native HTTPS Telegram Request Helper (100% Reliable across Windows IPv4/IPv6 networks)
 function telegramApi(methodName, data = null) {
   return new Promise((resolve, reject) => {
@@ -220,8 +223,9 @@ function extractCleanFoodName(text) {
     'ηπια', 'ήπια', 'εφαγα', 'έφαγα', 'φαγαμε', 'φάγαμε', 'καταναλωσα', 'κατανάλωσα',
     'καταλαθος', 'κατά', 'λάθος', 'λαθος', 'κατεγραψε', 'κατέγραψε', 'κατεγραψέ', 'κατέγραψέ',
     'καταγραφη', 'καταγραφή', 'σημειωσε', 'σημείωσε', 'το',
-    'βαλε', 'βάλε', 'προσθεσε', 'πρόσθεσε', 'γραψε', 'γράψε',
-    'θελω', 'θέλω', 'να', 'βαλεις', 'βάλεις', 'βαλτο', 'βάλτο', 'προσθεσεις', 'προσθέσεις',
+    'βαλε', 'βάλε', 'βαλτο', 'βάλτο', 'βαλτε', 'βάλτε', 'βαλτα', 'βάλτα', 'προσθεσε', 'πρόσθεσε', 'γραψε', 'γράψε',
+    'θελω', 'θέλω', 'να', 'βαλεις', 'βάλεις', 'προσθεσεις', 'προσθέσεις',
+    'στην', 'εφαρμογη', 'εφαρμογή', 'στο', 'dashboard', 'πλανο', 'πλάνο', 'στγην',
     'μολις', 'μόλις', 'τωρα', 'τώρα', 'σημερα', 'σήμερα', 'χθες',
     'ξεχαστηκα', 'ξεχάστηκα', 'ενα', 'ένα', 'μια', 'μία', 'δυο', 'δύο', 'τρια', 'τρία',
     'λιγο', 'λίγο', 'πολυ', 'πολύ', 'παρακαλω', 'παρακαλώ', 'ευχαριστω', 'ευχαριστώ'
@@ -434,6 +438,7 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
   const currentWeight = await getLatestWeight();
   const waterMl = await getTodayWater();
   const foodLogs = await getTodayFoodLogs();
+  const lastAnalyzed = lastAnalyzedFoodMap.get(chatId) || null;
 
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -459,13 +464,18 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
     ? foodLogs.map(f => `• ${f.name} (${f.quantity}g) - ${f.calories}kcal, P:${f.protein}g, C:${f.carbs}g, F:${f.fat}g [${f.time || ''}]`).join('\n')
     : 'Δεν έχει καταγραφεί κανένα γεύμα ακόμα για σήμερα.';
 
+  const lastAnalyzedText = lastAnalyzed 
+    ? `Τελευταίο τρόφιμο/πιάτο που αναλύθηκε στην κουβέντα: "${lastAnalyzed.name}" (~${lastAnalyzed.quantity}g, ${lastAnalyzed.calories}kcal, P:${lastAnalyzed.protein}g, C:${lastAnalyzed.carbs}g, F:${lastAnalyzed.fat}g).`
+    : 'Δεν υπάρχει πρόσφατη ανάλυση πιάτου.';
+
   const systemPrompt = `Είσαι ο προσωπικός διατροφολόγος και coach του Σπύρου.
 Μιλάς σαν πραγματικός άνθρωπος/φίλος, άμεσα, ζεστά και περιεκτικά.
 
-[ΚΡΙΣΙΜΟΙ ΚΑΝΟΝΕΣ ΥΦΟΥΣ & ΜΟΡΦΟΠΟΙΗΣΗΣ]:
-1. ΜΗΝ ΧΡΗΣΙΜΟΠΟΙΕΙΣ ΠΟΤΕ σύμβολα όπως #, ##, ### (headers), *** ή περίεργες διακοσμήσεις.
-2. Οι απαντήσεις σου πρέπει να είναι TO THE POINT, ΣΥΝΤΟΜΕΣ (2-4 γραμμές) και ανθρώπινες. Χωρίς περιττές σάλτσες και κατεβατά.
-3. Πες ακριβώς αυτό που πρέπει:
+[ΚΡΙΣΙΜΟΙ ΚΑΝΟΝΕΣ ΣΥΝΟΜΙΛΙΑΣ & CONTEXT]:
+1. ΕΧΕΙΣ ΠΛΗΡΗ ΜΝΗΜΗ της συνομιλίας! Αν ο Σπύρος πει «βάλτο στην εφαρμογή», «βάλτε το», «κατάγραψέ το», «ναι», «βαλτο», ΕΝΝΟΕΙ ΤΟ ΤΕΛΕΥΤΑΙΟ ΤΡΟΦΙΜΟ ΠΟΥ ΣΥΖΗΤΗΣΑΤΕ (${lastAnalyzedText})! ΜΗΝ ρωτάς τι εννοεί, αλλά καταχώρησέ το αμέσως βάζοντας το tag [ACTION:LOG_FOOD:...].
+2. ΜΗΝ ΧΡΗΣΙΜΟΠΟΙΕΙΣ ΠΟΤΕ σύμβολα όπως #, ##, ### (headers), *** ή περίεργες διακοσμήσεις.
+3. Οι απαντήσεις σου πρέπει να είναι TO THE POINT, ΣΥΝΤΟΜΕΣ (2-4 γραμμές) και ανθρώπινες. Χωρίς περιττές σάλτσες και κατεβατά.
+4. Πες ακριβώς αυτό που πρέπει:
    - Τι τρόφιμο είναι και εκτίμηση γραμμαρίων.
    - Αν κάνει για Keto (Ναι/Όχι) και γιατί σε 1 πρόταση.
    - Θερμίδες & Macros επιγραμματικά σε 1 γραμμή.
@@ -478,20 +488,22 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
 
 [ΣΗΜΕΡΙΝΗ ΚΑΤΑΣΤΑΣΗ]:
 - Νερό: ${waterMl}ml / 3000ml | Θερμίδες: ${todayMacros.calories}kcal | Πρωτεΐνη: ${todayMacros.protein}g | Υδατάνθρακες: ${todayMacros.carbs}g
+- ${lastAnalyzedText}
 
 [ΟΔΗΓΙΑ ΦΩΤΟΓΡΑΦΙΑΣ ΠΙΑΤΟΥ / ΤΡΟΦΙΜΩΝ]:
 Ανάλυσε σύντομα τι βλέπεις, πες αν κάνει για Keto, και βάλε στο ΤΕΛΟΣ ΜΟΝΟ το tag:
 [ACTION:PROPOSE_FOOD:{"name":"Όνομα Πιάτου","grams":γραμμάρια,"calories":θερμίδες,"protein":πρωτεΐνη,"carbs":υδατάνθρακες,"fat":λιπαρά}]
 
 [ΟΔΗΓΙΑ ΚΕΙΜΕΝΟΥ]:
+- Αν λέει «βάλτο στην εφαρμογή» / «βάλτε το» / «κατέγραψέ το»: Επιβεβαίωσε φιλικά και βάλε το tag [ACTION:LOG_FOOD:{"name":"${lastAnalyzed?.name || 'Φαγητό'}","grams":${lastAnalyzed?.quantity || 150},"calories":${lastAnalyzed?.calories || 200},"protein":${lastAnalyzed?.protein || 10},"carbs":${lastAnalyzed?.carbs || 5},"fat":${lastAnalyzed?.fat || 5}}]
 - Αν ρωτάει αν κάνει κάτι: Απάντησε κοφτά και καθαρά σαν άνθρωπος.
 - Αν λέει «έφαγα X» ρητά: Δώσε σύντομο feedback και βάλε [ACTION:LOG_FOOD:{"name":"Όνομα","grams":150,"calories":250,"protein":30,"carbs":2,"fat":12}]
 - Αν λέει νερό (π.χ. «ήπια 500ml»): [ACTION:ADD_WATER:500]
 - Αν λέει βάρος (π.χ. «103.5kg»): [ACTION:LOG_WEIGHT:103.5]`;
 
   let history = chatHistories.get(chatId) || [];
-  if (history.length > 6) {
-    history = history.slice(-6);
+  if (history.length > 8) {
+    history = history.slice(-8);
   }
 
   // Format user message content (Text vs Multimodal Image)
@@ -511,7 +523,7 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
 
   const messages = [
     { role: 'user', content: systemPrompt },
-    { role: 'assistant', content: 'Κατάλαβα απόλυτα. Απαντάω πάντα ανθρώπινα, σύντομα, to the point και χωρίς σύμβολα headers.' },
+    { role: 'assistant', content: 'Κατάλαβα απόλυτα. Έχω πλήρη μνήμη των προηγούμενων μηνυμάτων και απαντάω πάντα ανθρώπινα, σύντομα, to the point και χωρίς σύμβολα headers.' },
     ...history,
     { role: 'user', content: userMessagePayloadContent }
   ];
@@ -527,7 +539,7 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: messages,
-        temperature: 0.5,
+        temperature: 0.4,
         max_tokens: 450,
       })
     });
@@ -549,6 +561,21 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
     let proposedFood = null;
     let directFoodLogged = false;
 
+    // Direct Context Match: User says "βάλτο στην εφαρμογή / βάλτε το"
+    const lowerUserMsg = userMessage ? userMessage.toLowerCase().trim() : '';
+    const isContextAddCommand = /βάλτο|βαλτο|βάλτε|βαλτε|βάλτα|βαλτα|πρόσθεσέ το|προσθεσε το|κατέγραψέ το|κατεγραψε το|βάλτο στην εφαρμογή|βαλτε στγην εφαρμογη|βαλτο στο dashboard/i.test(lowerUserMsg);
+
+    if (isContextAddCommand && lastAnalyzed && !directFoodLogged) {
+      const entry = {
+        ...lastAnalyzed,
+        id: 'fl-' + Date.now(),
+        time: timeStr,
+      };
+      await addTodayFoodLog(entry);
+      directFoodLogged = true;
+      cleanMessage = `Έγινε Σπύρο! Καταγράφηκε στο Dashboard: <b>${entry.name}</b> (${entry.quantity}g) - ${entry.calories} kcal, P:${entry.protein}g, C:${entry.carbs}g.`;
+    }
+
     // 1. Check for PROPOSE_FOOD (from Photo Analysis or Questions)
     const proposeTagMatch = aiResponse.match(/\[ACTION:PROPOSE_FOOD:\s*(\{.*?\})\s*\]/is);
     if (proposeTagMatch) {
@@ -566,6 +593,8 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
             fat: parsed.fat || 0,
             time: timeStr,
           };
+          // Remember as last analyzed food for this chat
+          lastAnalyzedFoodMap.set(chatId, proposedFood);
         }
       } catch (err) {
         console.error('Failed to parse propose food tag:', err.message);
@@ -574,7 +603,7 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
 
     // 2. Check for Direct LOG_FOOD tag (Explicit logging)
     const directLogTagMatch = aiResponse.match(/\[ACTION:LOG_FOOD:\s*(\{.*?\})\s*\]/is);
-    if (directLogTagMatch) {
+    if (directLogTagMatch && !directFoodLogged) {
       try {
         const parsed = JSON.parse(directLogTagMatch[1]);
         if (parsed && parsed.name) {
@@ -591,6 +620,7 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
           };
           await addTodayFoodLog(entry);
           directFoodLogged = true;
+          lastAnalyzedFoodMap.set(chatId, entry);
           cleanMessage += `\n\n✅ <b>Καταγράφηκε στο Dashboard:</b> ${entry.name} (${entry.quantity}g) - ${entry.calories} kcal, P:${entry.protein}g, C:${entry.carbs}g`;
         }
       } catch (err) {
@@ -600,7 +630,6 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
 
     // 3. Direct Intent Recognition with Exact Word Matching (for text messages)
     if (!directFoodLogged && !proposedFood && !photoBase64) {
-      const lowerUserMsg = userMessage.toLowerCase().trim();
       const normalizedTokens = lowerUserMsg.replace(/[.,!?;:]/g, ' ').split(/\s+/).filter(Boolean);
 
       const isWaterMention = /νερό|νερο|water|ποτήρι|ποτηρι|ποτυρι|μπουκάλι|μπουκαλι/i.test(lowerUserMsg);
@@ -637,11 +666,12 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
       // Clear Foods Action
       if (/σβήσε|σβησε|καθάρισε|καθαρισε|μηδένισε|μηδενισε|διαγραφή/i.test(lowerUserMsg) && /φαγητά|φαγητα|γεύματα|γευματα/i.test(lowerUserMsg)) {
         await clearTodayFoodLogs();
+        lastAnalyzedFoodMap.delete(chatId);
         cleanMessage += `\n\n🗑️ <i>Τα σημερινά γεύματα διαγράφηκαν.</i>`;
       }
 
       // If user states they ATE something explicitly
-      const isExplicitEating = /έφαγα|εφαγα|ήπια|ηπια|κατανάλωσα|καταναλωσα|κατέγραψέ το|κατεγραψε το|βάλτο στο πλάνο/i.test(lowerUserMsg) && !isPureFoodQuestion;
+      const isExplicitEating = /έφαγα|εφαγα|ήπια|ηπια|κατανάλωσα|καταναλωσα/i.test(lowerUserMsg) && !isPureFoodQuestion;
       if (isExplicitEating && !lowerUserMsg.startsWith('/')) {
         const gramMatch = lowerUserMsg.match(/(\d+)\s*(?:g|gr|γραμμάρια|γραμμαρια)/i);
         const grams = gramMatch ? parseInt(gramMatch[1], 10) : 100;
@@ -661,6 +691,7 @@ async function callAiCoach(chatId, userMessage, photoBase64 = null) {
         };
 
         await addTodayFoodLog(entry);
+        lastAnalyzedFoodMap.set(chatId, entry);
         cleanMessage += `\n\n✅ <b>Καταγράφηκε:</b> ${entry.name} (${entry.quantity}g) - ${entry.calories} kcal, P:${entry.protein}g, C:${entry.carbs}g`;
       }
     }
@@ -777,7 +808,7 @@ let lastUpdateId = 0;
 async function startBot() {
   console.log('=============================================');
   console.log('🤖 Spiros AI Telegram Bot Service (@sgkdigital_bot)');
-  console.log('📸 Human-like & Concise Response Engine Active');
+  console.log('📸 Context-Aware Dialogue & Multi-turn Memory Active');
   console.log('=============================================');
 
   // Clean stale webhooks
@@ -813,6 +844,7 @@ async function startBot() {
               if (entry) {
                 await addTodayFoodLog(entry);
                 pendingFoodEntries.delete(pendingKey);
+                lastAnalyzedFoodMap.set(chatId, entry);
                 await answerCallbackQuery(cb.id, '✅ Καταχωρήθηκε!');
                 const updatedText = `${cb.message.text}\n\n✅ <b>Καταγράφηκε:</b> ${entry.name} (${entry.quantity}g) - ${entry.calories} kcal, P:${entry.protein}g, C:${entry.carbs}g`;
                 await editMessageText(chatId, messageId, updatedText);
@@ -870,7 +902,7 @@ async function startBot() {
                   `• Βάρος: ${currentWeight}kg (Στόχος: 90kg)\n` +
                   `• Νερό Σήμερα: ${water}ml / 3000ml\n` +
                   `• Διατροφή: Low-Carb 16:8 (Νηστεία 20:00 - 12:00)\n\n` +
-                  `💬 Μπορείς να μου γράφεις ελεύθερα: «ήπια 500ml», «κάνει να φάω αυτό;», «ζυγίζομαι 103.2kg».`;
+                  `💬 Μπορείς να μου γράφεις ελεύθερα: «ήπια 500ml», «κάνει να φάω αυτό;», «ζυγίζομαι 103.2kg», «βάλτο στην εφαρμογή».`;
                 await sendMessage(chatId, welcome);
                 continue;
               }
