@@ -6,7 +6,7 @@ export const INITIAL_USER_SETTINGS: UserSettings = {
   current_weight: 105.0,
   target_weight: 90.0,
   height_cm: 180,
-  age: 45,
+  age: 39,
   eating_window_start: '12:00',
   eating_window_end: '20:00',
   water_goal_ml: 3000,
