@@ -454,6 +454,32 @@ async function callAiCoach(chatId, userMessage) {
       cleanMessage += `\n\n🗑️ <i>Τα σημερινά γεύματα διαγράφηκαν από τη βάση δεδομένων.</i>`;
     }
 
+function extractCleanFoodName(text) {
+  const actionStopwords = new Set([
+    'ηπια', 'ήπια', 'εφαγα', 'έφαγα', 'φαγαμε', 'φάγαμε', 'καταναλωσα', 'κατανάλωσα',
+    'καταλαθος', 'κατά', 'λάθος', 'λαθος', 'κατεγραψε', 'κατέγραψε', 'κατεγραψέ', 'κατέγραψέ',
+    'καταγραφη', 'καταγραφή', 'σημειωσε', 'σημείωσε', 'το',
+    'βαλε', 'βάλε', 'προσθεσε', 'πρόσθεσε', 'γραψε', 'γράψε',
+    'θελω', 'θέλω', 'να', 'βαλεις', 'βάλεις', 'βαλτο', 'βάλτο', 'προσθεσεις', 'προσθέσεις',
+    'μολις', 'μόλις', 'τωρα', 'τώρα', 'σημερα', 'σήμερα', 'χθες',
+    'ξεχαστηκα', 'ξεχάστηκα', 'ενα', 'ένα', 'μια', 'μία', 'δυο', 'δύο', 'τρια', 'τρία',
+    'λιγο', 'λίγο', 'πολυ', 'πολύ', 'παρακαλω', 'παρακαλώ', 'ευχαριστω', 'ευχαριστώ'
+  ]);
+
+  const rawWords = text
+    .replace(/[.,!?;:()]/g, ' ')
+    .replace(/\d+\s*(?:g|gr|kg|γραμμάρια|γραμμαρια|θερμίδες|θερμιδες|kcal|ml)\b/gi, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const cleanWords = rawWords.filter(w => !actionStopwords.has(w.toLowerCase()));
+  let clean = cleanWords.join(' ').trim();
+  if (!clean || clean.length < 2) {
+    clean = text.trim();
+  }
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
     // 4. Food / Beverage Action (Infallible Automatic Detection)
     const isEatingOrFood = hasFoodOrSugar || /έφαγα|εφαγα|ήπια|ηπια|κατανάλωσα|καταναλωσα|φαγητό|φαγητο|πρωινό|πρωινο|μεσημεριανό|μεσημεριανο|βραδινό|βραδινο|σνακ|γεύμα|γευμα/i.test(lowerUserMsg);
     
@@ -461,11 +487,12 @@ async function callAiCoach(chatId, userMessage) {
       const gramMatch = lowerUserMsg.match(/(\d+)\s*(?:g|gr|γραμμάρια|γραμμαρια)/i);
       const grams = gramMatch ? parseInt(gramMatch[1], 10) : 100;
       const analysis = analyzeFoodDynamically(userMessage);
+      const cleanFoodName = extractCleanFoodName(userMessage);
 
       const entry = {
         id: 'fl-' + Date.now(),
         foodId: analysis.id || ('food-' + Date.now()),
-        name: analysis.name || userMessage.slice(0, 30),
+        name: cleanFoodName,
         quantity: grams,
         calories: Math.round(analysis.calories * (grams / 100)),
         protein: Math.round(analysis.protein * (grams / 100) * 10) / 10,
