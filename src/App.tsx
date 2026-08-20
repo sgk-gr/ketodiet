@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { DataService, supabase } from './lib/supabase';
-import { WeightLog, FoodItem, MealRecipe, FoodLogEntry } from './types';
+import { WeightLog, FoodItem, MealRecipe, FoodLogEntry, DailyLog } from './types';
 import { INITIAL_FOODS, INITIAL_WEIGHT_LOGS, INITIAL_MEAL_PLAN } from './data/initialData';
 import { SMART_FOOD_DB, SmartFood, searchSmartFoods } from './data/foodDatabase';
+import { AnalyticsCharts } from './components/AnalyticsCharts';
+import { AiChatDrawer } from './components/AiChatDrawer';
 
 const DAY_NAMES: MealRecipe['day'][] = [
   'Κυριακή',
@@ -39,6 +41,7 @@ function calculateGoalETA(currentWeight: number): { dateStr: string; weeks: numb
 
 export function App() {
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
+  const [dailyLogs, setDailyLogs] = useState<DailyLog[]>([]);
   const [foods, setFoods] = useState<FoodItem[]>(INITIAL_FOODS);
   const [meals, setMeals] = useState<MealRecipe[]>(INITIAL_MEAL_PLAN);
   const [searchFood, setSearchFood] = useState<string>('');
@@ -51,6 +54,7 @@ export function App() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [showInstallGuide, setShowInstallGuide] = useState<boolean>(false);
+  const [isAiChatOpen, setIsAiChatOpen] = useState<boolean>(false);
 
   // Check PWA Standalone & Listen for Install Prompt
   useEffect(() => {
@@ -121,6 +125,9 @@ export function App() {
       
       const serverFoodLogs = await DataService.getFoodLogs(todayStr);
       setFoodLog(serverFoodLogs);
+
+      const allDailies = await DataService.getAllDailyLogs();
+      if (allDailies.length > 0) setDailyLogs(allDailies);
 
       const f = await DataService.getFoods();
       if (f.length > 0) setFoods(f);
@@ -338,18 +345,26 @@ export function App() {
             </p>
           </div>
           
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setIsAiChatOpen(true)}
+              className="px-2.5 py-1 rounded-md bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-300 text-xs font-bold transition flex items-center space-x-1 shadow-sm"
+              title="Άνοιγμα AI Coach (GPT-4o-mini)"
+            >
+              <span>AI Coach</span>
+            </button>
+
             {!isInstalled && (
               <button
                 onClick={handleInstallClick}
-                className="px-2.5 py-1 rounded-md bg-neutral-900 hover:bg-neutral-800 border border-emerald-500/50 text-emerald-400 text-xs font-semibold transition flex items-center space-x-1"
+                className="px-2.5 py-1 rounded-md bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs font-semibold transition"
                 title="Εγκατάσταση εφαρμογής στο κινητό"
               >
                 <span>Εγκατάσταση</span>
               </button>
             )}
 
-            <div className="text-right">
+            <div className="text-right hidden sm:block">
               <span className="text-xs text-neutral-400 block font-medium">Στόχος βάρους</span>
               <span className="text-xs font-bold text-emerald-400">105kg ➔ 90kg</span>
             </div>
@@ -957,7 +972,10 @@ export function App() {
           </p>
         </div>
 
-        {/* 8. ΚΑΤΑΧΩΡΗΣΗ ΚΙΛΩΝ */}
+        {/* 8. ΑΝΑΛΥΤΙΚΑ ΔΙΑΓΡΑΜΜΑΤΑ & ΙΣΤΟΡΙΚΟ (ΑΝΑ ΜΗΝΑ / ΕΤΟΣ) */}
+        <AnalyticsCharts weightLogs={weightLogs} dailyLogs={dailyLogs} />
+
+        {/* 9. ΚΑΤΑΧΩΡΗΣΗ ΚΙΛΩΝ */}
         <div className="rounded-xl p-4 border border-neutral-800 bg-[#0d0d0d]">
           <h3 className="text-xs sm:text-sm font-bold text-white mb-2.5">
             Καταχώρηση σημερινών κιλών
@@ -1002,6 +1020,25 @@ export function App() {
         </div>
 
       </main>
+
+      {/* Floating AI Coach Trigger for Mobile */}
+      <button
+        onClick={() => setIsAiChatOpen(true)}
+        className="fixed bottom-5 right-5 z-40 px-3.5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-2xl border border-emerald-400 flex items-center space-x-1.5 transition active:scale-95"
+        title="Άνοιγμα AI Coach"
+      >
+        <span>💬 AI Coach</span>
+      </button>
+
+      {/* In-App AI Chat Drawer */}
+      <AiChatDrawer
+        isOpen={isAiChatOpen}
+        onClose={() => setIsAiChatOpen(false)}
+        onDataChanged={loadData}
+        currentWeight={latestWeight}
+        waterMl={waterMl}
+        foodLogs={foodLog}
+      />
 
     </div>
   );

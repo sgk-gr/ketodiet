@@ -71,7 +71,7 @@ export interface DailyLog {
   exercise_minutes: number;
   exercise_type: 'recumbent_bike' | 'walking' | 'swimming' | 'decompression_stretches' | 'rest';
   lumbar_feeling: 'excellent' | 'good' | 'moderate' | 'painful';
-  completed_habits: string[];
+  completed_habits: any[];
   notes?: string;
   created_at?: string;
 }
@@ -87,4 +87,12 @@ export interface UserSettings {
   eating_window_end: string;   // "20:00"
   water_goal_ml: number;
   daily_steps_goal: number;
+}
+
+export interface AiChatMessage {
+  id: string;
+  sender: 'user' | 'ai';
+  message: string;
+  created_at: string;
+  action_data?: any;
 }

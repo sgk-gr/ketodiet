@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { FoodItem, MealRecipe, WeightLog, DailyLog, UserSettings, FoodLogEntry } from '../types';
+import { FoodItem, MealRecipe, WeightLog, DailyLog, UserSettings, FoodLogEntry, AiChatMessage } from '../types';
 import { INITIAL_FOODS, INITIAL_MEAL_PLAN, INITIAL_USER_SETTINGS, INITIAL_WEIGHT_LOGS } from '../data/initialData';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xrmvingehhiymchoggka.supabase.co';
@@ -14,6 +14,7 @@ const STORAGE_KEYS = {
   DAILY: 'spiros_local_daily',
   SETTINGS: 'spiros_local_settings',
   FOOD_LOGS: 'spiros_local_food_logs',
+  AI_CHAT: 'spiros_local_ai_chat',
 };
 
 // --- DATA SERVICE WITH AUTO SUPABASE + LOCALSTORAGE FALLBACK ---
@@ -56,7 +57,6 @@ export const DataService = {
         .select()
         .single();
       if (!error && data) {
-        // Sync local storage too
         const local = await this.getWeightLogs();
         const updated = [...local.filter(l => l.id !== data.id), data].sort((a, b) => a.date.localeCompare(b.date));
         localStorage.setItem(STORAGE_KEYS.WEIGHT, JSON.stringify(updated));
@@ -66,7 +66,6 @@ export const DataService = {
       // Local fallback
     }
 
-    // LocalStorage fallback
     const current = await this.getWeightLogs();
     const updated = [...current, newLog].sort((a, b) => a.date.localeCompare(b.date));
     localStorage.setItem(STORAGE_KEYS.WEIGHT, JSON.stringify(updated));
@@ -76,9 +75,7 @@ export const DataService = {
   async deleteWeightLog(id: string): Promise<void> {
     try {
       await supabase.from('spiros_weight_logs').delete().eq('id', id);
-    } catch {
-      // ignore
-    }
+    } catch {}
     const current = await this.getWeightLogs();
     const updated = current.filter(l => l.id !== id);
     localStorage.setItem(STORAGE_KEYS.WEIGHT, JSON.stringify(updated));
@@ -124,9 +121,7 @@ export const DataService = {
         localStorage.setItem(STORAGE_KEYS.FOODS, JSON.stringify(updated));
         return data;
       }
-    } catch {
-      // Local fallback
-    }
+    } catch {}
 
     const current = await this.getFoods();
     const updated = [newFood, ...current];
@@ -137,9 +132,7 @@ export const DataService = {
   async deleteFood(id: string): Promise<void> {
     try {
       await supabase.from('spiros_foods').delete().eq('id', id);
-    } catch {
-      // ignore
-    }
+    } catch {}
     const current = await this.getFoods();
     const updated = current.filter(f => f.id !== id);
     localStorage.setItem(STORAGE_KEYS.FOODS, JSON.stringify(updated));
@@ -175,13 +168,11 @@ export const DataService = {
         .eq('date', date)
         .single();
       if (!error && data) return data;
-    } catch {
-      // fallback
-    }
+    } catch {}
 
     const localStr = localStorage.getItem(STORAGE_KEYS.DAILY + '_' + date);
     if (localStr) {
-      try { return JSON.parse(localStr); } catch { /* ignore */ }
+      try { return JSON.parse(localStr); } catch {}
     }
 
     const defaultLog: DailyLog = {
@@ -198,14 +189,25 @@ export const DataService = {
     return defaultLog;
   },
 
+  async getAllDailyLogs(): Promise<DailyLog[]> {
+    try {
+      const { data, error } = await supabase
+        .from('spiros_daily_logs')
+        .select('*')
+        .order('date', { ascending: true });
+      if (!error && data && data.length > 0) {
+        return data;
+      }
+    } catch {}
+    return [];
+  },
+
   async saveDailyLog(log: DailyLog): Promise<void> {
     try {
       await supabase
         .from('spiros_daily_logs')
         .upsert([log], { onConflict: 'date' });
-    } catch {
-      // ignore
-    }
+    } catch {}
     localStorage.setItem(STORAGE_KEYS.DAILY + '_' + log.date, JSON.stringify(log));
   },
 
@@ -221,13 +223,11 @@ export const DataService = {
         localStorage.setItem(STORAGE_KEYS.FOOD_LOGS + '_' + date, JSON.stringify(data.completed_habits));
         return data.completed_habits as FoodLogEntry[];
       }
-    } catch {
-      // fallback to local
-    }
+    } catch {}
 
     const localStr = localStorage.getItem(STORAGE_KEYS.FOOD_LOGS + '_' + date);
     if (localStr) {
-      try { return JSON.parse(localStr); } catch { /* ignore */ }
+      try { return JSON.parse(localStr); } catch {}
     }
     return [];
   },
@@ -261,11 +261,51 @@ export const DataService = {
     }
   },
 
+  // --- AI CHAT HISTORY (spiros_aichat) ---
+  async getAiChatMessages(): Promise<AiChatMessage[]> {
+    try {
+      const { data, error } = await supabase
+        .from('spiros_aichat')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .limit(50);
+      if (!error && data && data.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.AI_CHAT, JSON.stringify(data));
+        return data as AiChatMessage[];
+      }
+    } catch {}
+
+    const localStr = localStorage.getItem(STORAGE_KEYS.AI_CHAT);
+    if (localStr) {
+      try { return JSON.parse(localStr); } catch {}
+    }
+    return [];
+  },
+
+  async saveAiChatMessage(message: Omit<AiChatMessage, 'id' | 'created_at'>): Promise<AiChatMessage> {
+    const fullMsg: AiChatMessage = {
+      id: 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+      ...message,
+      created_at: new Date().toISOString(),
+    };
+
+    // Try Supabase first
+    try {
+      await supabase.from('spiros_aichat').insert([fullMsg]);
+    } catch {}
+
+    // Save to local cache
+    const current = await this.getAiChatMessages();
+    const updated = [...current, fullMsg];
+    localStorage.setItem(STORAGE_KEYS.AI_CHAT, JSON.stringify(updated));
+    return fullMsg;
+  },
+
   // --- SETTINGS (spiros_settings) ---
   async getSettings(): Promise<UserSettings> {
     const local = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (local) {
-      try { return JSON.parse(local); } catch { /* ignore */ }
+      try { return JSON.parse(local); } catch {}
     }
     return INITIAL_USER_SETTINGS;
   },
@@ -276,9 +316,7 @@ export const DataService = {
       await supabase
         .from('spiros_settings')
         .upsert([{ id: 'spiros-main-profile', ...settings }], { onConflict: 'id' });
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 };
 
@@ -364,6 +402,15 @@ CREATE TABLE IF NOT EXISTS spiros_settings (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 6. Table: spiros_aichat (AI Coach Conversation History)
+CREATE TABLE IF NOT EXISTS spiros_aichat (
+    id TEXT PRIMARY KEY,
+    sender TEXT NOT NULL,
+    message TEXT NOT NULL,
+    action_data JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Enable RLS and create public policies for all spiros_ tables
 ALTER TABLE spiros_weight_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public full access spiros_weight_logs" ON spiros_weight_logs FOR ALL USING (true) WITH CHECK (true);
@@ -379,5 +426,8 @@ CREATE POLICY "Public full access spiros_daily_logs" ON spiros_daily_logs FOR AL
 
 ALTER TABLE spiros_settings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public full access spiros_settings" ON spiros_settings FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE spiros_aichat ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public full access spiros_aichat" ON spiros_aichat FOR ALL USING (true) WITH CHECK (true);
 `;
 }
