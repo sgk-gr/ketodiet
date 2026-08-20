@@ -403,16 +403,28 @@ async function callAiCoach(chatId, userMessage) {
     let cleanMessage = aiResponse;
     let actionExecuted = false;
 
-    // Direct Intent Recognition (Infallible JavaScript Layer)
-    const lowerUserMsg = userMessage.toLowerCase();
-    const isSugaryDrinkOrFood = /καφέ|καφε|φραπέ|φραπε|frape|espresso|cappuccino|ζάχαρη|ζαχαρη|χυμό|χυμο|γάλα|γαλα|μπύρα|μπυρα|κρασί|κρασι|αναψυκτικό|αναψυκτικο|coca|φαγητό|φαγητο|έφαγα|εφαγα|κοτόπουλο|κοτοπουλο|μπριζόλα|μπριζολα|αυγό|αυγα|αυγά|ομελέτα|ομελετα|σαλάτα|σαλατα|ψάρι|ψαρι|σολομός|σολομος|τυρί|τυρι|φέτα|φετα/i.test(lowerUserMsg);
+    // Direct Intent Recognition with Exact Word Matching
+    const lowerUserMsg = userMessage.toLowerCase().trim();
+    const normalizedTokens = lowerUserMsg.replace(/[.,!?;:]/g, ' ').split(/\s+/).filter(Boolean);
 
-    // 1. Water Action
-    if (!isSugaryDrinkOrFood && /νερό|νερο|water/i.test(lowerUserMsg)) {
+    const foodWords = [
+      'καφές', 'καφες', 'καφέ', 'καφε', 'φραπέ', 'φραπε', 'frape', 'espresso', 'cappuccino',
+      'ζάχαρη', 'ζαχαρη', 'χυμός', 'χυμος', 'χυμό', 'χυμο', 'γάλα', 'γαλα', 'μπύρα', 'μπυρα',
+      'κρασί', 'κρασι', 'αναψυκτικό', 'αναψυκτικο', 'coca', 'κόκα', 'κολα', 'κόλα', 'τυρί', 'τυρι',
+      'φέτα', 'φετα', 'κοτόπουλο', 'κοτοπουλο', 'κρέας', 'κρεας', 'μπριζόλα', 'μπριζολα', 'αυγό',
+      'αυγο', 'αυγά', 'αυγα', 'ομελέτα', 'ομελετα', 'σολομός', 'σολομος', 'ψάρι', 'ψαρι', 'σαλάτα', 'σαλατα'
+    ];
+    const hasFoodOrSugar = foodWords.some(w => normalizedTokens.includes(w));
+    const isWaterMention = /νερό|νερο|water|ποτήρι|ποτηρι|ποτυρι|μπουκάλι|μπουκαλι/i.test(lowerUserMsg);
+
+    // 1. Water Action (Only if pure water and no sugary drinks/food)
+    if (isWaterMention && !hasFoodOrSugar) {
       let ml = 250;
-      const numMatch = lowerUserMsg.match(/(\d+)\s*(?:ml|λιτρα|λίτρα|l)?/i);
+      const numMatch = lowerUserMsg.match(/(\d+)\s*(?:ml|λιτρα|λίτρα|l|ποτηρια|ποτήρια)?/i);
       if (lowerUserMsg.includes('1 λιτρο') || lowerUserMsg.includes('1 λίτρο') || lowerUserMsg.includes('1l')) ml = 1000;
+      else if (lowerUserMsg.includes('2 λιτρα') || lowerUserMsg.includes('2 λίτρα') || lowerUserMsg.includes('2l')) ml = 2000;
       else if (lowerUserMsg.includes('μισό λίτρο') || lowerUserMsg.includes('500ml')) ml = 500;
+      else if (lowerUserMsg.includes('2 ποτηρια') || lowerUserMsg.includes('2 ποτήρια') || lowerUserMsg.includes('δυο ποτηρια')) ml = 500;
       else if (numMatch && numMatch[1]) ml = parseInt(numMatch[1], 10);
 
       if (ml > 0) {
@@ -443,9 +455,9 @@ async function callAiCoach(chatId, userMessage) {
     }
 
     // 4. Food / Beverage Action (Infallible Automatic Detection)
-    const isEatingOrDrink = /έφαγα|εφαγα|ήπια|ηπια|κατανάλωσα|καταναλωσα|φαγητό|φαγητο|πρωινό|πρωινο|μεσημεριανό|μεσημεριανο|βραδινό|βραδινο|σνακ|γεύμα|γευμα/i.test(lowerUserMsg) || isSugaryDrinkOrFood;
+    const isEatingOrFood = hasFoodOrSugar || /έφαγα|εφαγα|ήπια|ηπια|κατανάλωσα|καταναλωσα|φαγητό|φαγητο|πρωινό|πρωινο|μεσημεριανό|μεσημεριανο|βραδινό|βραδινο|σνακ|γεύμα|γευμα/i.test(lowerUserMsg);
     
-    if (isEatingOrDrink && !lowerUserMsg.startsWith('/') && !actionExecuted) {
+    if (isEatingOrFood && !lowerUserMsg.startsWith('/') && !actionExecuted) {
       const gramMatch = lowerUserMsg.match(/(\d+)\s*(?:g|gr|γραμμάρια|γραμμαρια)/i);
       const grams = gramMatch ? parseInt(gramMatch[1], 10) : 100;
       const analysis = analyzeFoodDynamically(userMessage);
