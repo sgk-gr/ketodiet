@@ -388,70 +388,78 @@ async function callAiCoach(chatId, userMessage) {
       aiResponse = 'Δεν μπόρεσα να επεξεργαστώ το αίτημα αυτή τη στιγμή. Δοκίμασε ξανά σε λίγο!';
     }
 
-    // Process Actions from AI Response
+    // Process Actions from AI Response & Automatic Intent Detection
     let cleanMessage = aiResponse;
+    let actionExecuted = false;
+
+    // Direct Intent Recognition (Infallible JavaScript Layer)
+    const lowerUserMsg = userMessage.toLowerCase();
+    const isSugaryDrinkOrFood = /καφέ|καφε|φραπέ|φραπε|frape|espresso|cappuccino|ζάχαρη|ζαχαρη|χυμό|χυμο|γάλα|γαλα|μπύρα|μπυρα|κρασί|κρασι|αναψυκτικό|αναψυκτικο|coca|φαγητό|φαγητο|έφαγα|εφαγα|κοτόπουλο|κοτοπουλο|μπριζόλα|μπριζολα|αυγό|αυγα|αυγά|ομελέτα|ομελετα|σαλάτα|σαλατα|ψάρι|ψαρι|σολομός|σολομος|τυρί|τυρι|φέτα|φετα/i.test(lowerUserMsg);
 
     // 1. Water Action
-    const waterMatch = cleanMessage.match(/\[ACTION:ADD_WATER:(\d+)\]/i);
-    if (waterMatch) {
-      const ml = parseInt(waterMatch[1], 10);
-      if (!isNaN(ml) && ml > 0) {
+    if (!isSugaryDrinkOrFood && /νερό|νερο|water/i.test(lowerUserMsg)) {
+      let ml = 250;
+      const numMatch = lowerUserMsg.match(/(\d+)\s*(?:ml|λιτρα|λίτρα|l)?/i);
+      if (lowerUserMsg.includes('1 λιτρο') || lowerUserMsg.includes('1 λίτρο') || lowerUserMsg.includes('1l')) ml = 1000;
+      else if (lowerUserMsg.includes('μισό λίτρο') || lowerUserMsg.includes('500ml')) ml = 500;
+      else if (numMatch && numMatch[1]) ml = parseInt(numMatch[1], 10);
+
+      if (ml > 0) {
         const newTotal = await addTodayWater(ml);
-        cleanMessage = cleanMessage.replace(waterMatch[0], '').trim();
-        cleanMessage += `\n\n💧 Σύνολο νερού σήμερα: <b>${newTotal}ml</b> / 3000ml\n${renderProgressBar(newTotal, 3000)}`;
+        actionExecuted = true;
+        cleanMessage += `\n\n💧 <b>Σύνολο νερού σήμερα:</b> ${newTotal}ml / 3000ml\n${renderProgressBar(newTotal, 3000)}`;
       }
     }
 
-    // 2. Reset Water Action
-    if (cleanMessage.includes('[ACTION:RESET_WATER]')) {
-      await resetTodayWater();
-      cleanMessage = cleanMessage.replace('[ACTION:RESET_WATER]', '').trim();
-      cleanMessage += `\n\n💧 Το νερό μηδενίστηκε (0ml / 3000ml).`;
-    }
-
-    // 3. Food Action
-    const foodMatch = cleanMessage.match(/\[ACTION:LOG_FOOD:(\{.*?\})\]/is);
-    if (foodMatch) {
-      try {
-        const foodData = JSON.parse(foodMatch[1]);
-        const entry = {
-          id: 'fl-' + Date.now(),
-          foodId: 'food-' + Date.now(),
-          name: foodData.name || 'Γεύμα',
-          quantity: foodData.grams || 100,
-          calories: foodData.calories || 0,
-          protein: foodData.protein || 0,
-          carbs: foodData.carbs || 0,
-          fat: foodData.fat || 0,
-          time: timeStr,
-        };
-        await addTodayFoodLog(entry);
-        cleanMessage = cleanMessage.replace(foodMatch[0], '').trim();
-        cleanMessage += `\n\n✅ <i>Αποθηκεύτηκε αυτόματα στο Dashboard και στη Supabase!</i>`;
-      } catch (err) {
-        console.error('Failed to parse AI food action:', err);
-      }
-    }
-
-    // 4. Clear Foods Action
-    if (cleanMessage.includes('[ACTION:CLEAR_FOODS]')) {
-      await clearTodayFoodLogs();
-      cleanMessage = cleanMessage.replace('[ACTION:CLEAR_FOODS]', '').trim();
-      cleanMessage += `\n\n🗑️ <i>Τα σημερινά γεύματα διαγράφηκαν από τη βάση δεδομένων.</i>`;
-    }
-
-    // 5. Weight Action
-    const weightMatch = cleanMessage.match(/\[ACTION:LOG_WEIGHT:([\d\.]+)\]/i);
+    // 2. Weight Action
+    const weightMatch = lowerUserMsg.match(/(?:ζυγίζομαι|ζυγιζομαι|βάρος|βαρος|κιλά|κιλα|ειμαι|είμαι)\s*(\d{2,3}(?:[\.,]\d)?)\s*(?:kg|κιλα|κιλά)?/i);
     if (weightMatch) {
-      const w = parseFloat(weightMatch[1]);
-      if (!isNaN(w) && w > 0) {
+      const w = parseFloat(weightMatch[1].replace(',', '.'));
+      if (w >= 70 && w <= 160) {
         await addWeightLog(w);
         const lost = (105.0 - w).toFixed(1);
         const relief = (Math.max(0, parseFloat(lost)) * 4).toFixed(1);
-        cleanMessage = cleanMessage.replace(weightMatch[0], '').trim();
+        actionExecuted = true;
         cleanMessage += `\n\n⚖️ <b>Καταγραφή Βάρους: ${w}kg</b>\n• Συνολική απώλεια: <b>-${lost}kg</b>\n• Ανακούφιση μέσης: <b>-${relief}kg πίεση</b> στους σπονδύλους!\n• Πρόβλεψη για 90kg: ${calculateGoalETA(w)}`;
       }
     }
+
+    // 3. Clear Foods Action
+    if (/σβήσε|σβησε|καθάρισε|καθαρισε|μηδένισε|μηδενισε|διαγραφή/i.test(lowerUserMsg) && /φαγητά|φαγητα|γεύματα|γευματα/i.test(lowerUserMsg)) {
+      await clearTodayFoodLogs();
+      actionExecuted = true;
+      cleanMessage += `\n\n🗑️ <i>Τα σημερινά γεύματα διαγράφηκαν από τη βάση δεδομένων.</i>`;
+    }
+
+    // 4. Food / Beverage Action (Infallible Automatic Detection)
+    const isEatingOrDrink = /έφαγα|εφαγα|ήπια|ηπια|κατανάλωσα|καταναλωσα|φαγητό|φαγητο|πρωινό|πρωινο|μεσημεριανό|μεσημεριανο|βραδινό|βραδινο|σνακ|γεύμα|γευμα/i.test(lowerUserMsg) || isSugaryDrinkOrFood;
+    
+    if (isEatingOrDrink && !lowerUserMsg.startsWith('/') && !actionExecuted) {
+      const gramMatch = lowerUserMsg.match(/(\d+)\s*(?:g|gr|γραμμάρια|γραμμαρια)/i);
+      const grams = gramMatch ? parseInt(gramMatch[1], 10) : 100;
+      const analysis = analyzeFoodDynamically(userMessage);
+
+      const entry = {
+        id: 'fl-' + Date.now(),
+        foodId: analysis.id || ('food-' + Date.now()),
+        name: analysis.name || userMessage.slice(0, 30),
+        quantity: grams,
+        calories: Math.round(analysis.calories * (grams / 100)),
+        protein: Math.round(analysis.protein * (grams / 100) * 10) / 10,
+        carbs: Math.round(analysis.carbs * (grams / 100) * 10) / 10,
+        fat: Math.round(analysis.fat * (grams / 100) * 10) / 10,
+        time: timeStr,
+      };
+
+      await addTodayFoodLog(entry);
+      cleanMessage += `\n\n✅ <b>Καταγράφηκε αυτόματα στο Dashboard:</b>\n• <b>${entry.name}</b> (${entry.quantity}g)\n• Θερμίδες: <b>${entry.calories} kcal</b> | Πρωτεΐνη: <b>${entry.protein}g</b> | Υδατάνθρακες: <b>${entry.carbs}g</b>`;
+    }
+
+    // Scrub ANY leaked action tags from message
+    cleanMessage = cleanMessage
+      .replace(/\[\s*ACTION:[^\]]*\]?/gi, '')
+      .replace(/\[\s*ACTION:[^\n]*\n?/gi, '')
+      .trim();
 
     // Save to conversation history
     history.push({ role: 'user', content: userMessage });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DataService, supabase } from '../lib/supabase';
 import { AiChatMessage, FoodLogEntry } from '../types';
+import { analyzeFoodDynamically } from '../data/foodDatabase';
 
 interface AiChatDrawerProps {
   isOpen: boolean;
@@ -150,11 +151,20 @@ export function AiChatDrawer({
         cleanMsg = 'Είμαι εδώ για ό,τι χρειαστείς, Σπύρο!';
       }
 
-      // Process Actions
-      const waterMatch = cleanMsg.match(/\[ACTION:ADD_WATER:(\d+)\]/i);
-      if (waterMatch) {
-        const ml = parseInt(waterMatch[1], 10);
-        if (!isNaN(ml) && ml > 0) {
+      // Process Actions & Infallible Automatic Intent Detection
+      let actionExecuted = false;
+      const lowerUserMsg = text.toLowerCase();
+      const isSugaryDrinkOrFood = /καφέ|καφε|φραπέ|φραπε|frape|espresso|cappuccino|ζάχαρη|ζαχαρη|χυμό|χυμο|γάλα|γαλα|μπύρα|μπυρα|κρασί|κρασι|αναψυκτικό|αναψυκτικο|coca|φαγητό|φαγητο|έφαγα|εφαγα|κοτόπουλο|κοτοπουλο|μπριζόλα|μπριζολα|αυγό|αυγα|αυγά|ομελέτα|ομελετα|σαλάτα|σαλατα|ψάρι|ψαρι|σολομός|σολομος|τυρί|τυρι|φέτα|φετα/i.test(lowerUserMsg);
+
+      // 1. Water Action
+      if (!isSugaryDrinkOrFood && /νερό|νερο|water/i.test(lowerUserMsg)) {
+        let ml = 250;
+        const numMatch = lowerUserMsg.match(/(\d+)\s*(?:ml|λιτρα|λίτρα|l)?/i);
+        if (lowerUserMsg.includes('1 λιτρο') || lowerUserMsg.includes('1 λίτρο') || lowerUserMsg.includes('1l')) ml = 1000;
+        else if (lowerUserMsg.includes('μισό λίτρο') || lowerUserMsg.includes('500ml')) ml = 500;
+        else if (numMatch && numMatch[1]) ml = parseInt(numMatch[1], 10);
+
+        if (ml > 0) {
           const todayStr = new Date().toISOString().split('T')[0];
           const newWater = Math.min(6000, waterMl + ml);
           await DataService.saveDailyLog({
@@ -167,40 +177,17 @@ export function AiChatDrawer({
             lumbar_feeling: 'good',
             completed_habits: [],
           });
-          cleanMsg = cleanMsg.replace(waterMatch[0], '').trim();
           cleanMsg += `\n\n💧 Σύνολο νερού: ${newWater}ml / 3000ml`;
+          actionExecuted = true;
           onDataChanged();
         }
       }
 
-      const foodMatch = cleanMsg.match(/\[ACTION:LOG_FOOD:(\{.*?\})\]/is);
-      if (foodMatch) {
-        try {
-          const foodData = JSON.parse(foodMatch[1]);
-          const todayStr = new Date().toISOString().split('T')[0];
-          const entry: FoodLogEntry = {
-            id: 'fl-' + Date.now(),
-            foodId: 'food-' + Date.now(),
-            name: foodData.name || 'Γεύμα',
-            quantity: foodData.grams || 100,
-            calories: foodData.calories || 0,
-            protein: foodData.protein || 0,
-            carbs: foodData.carbs || 0,
-            fat: foodData.fat || 0,
-            time: timeStr,
-          };
-          const updated = [...foodLogs, entry];
-          await DataService.saveFoodLogs(todayStr, updated);
-          cleanMsg = cleanMsg.replace(foodMatch[0], '').trim();
-          cleanMsg += `\n\n✅ Καταγράφηκε αυτόματα στο Dashboard!`;
-          onDataChanged();
-        } catch (e) {}
-      }
-
-      const weightMatch = cleanMsg.match(/\[ACTION:LOG_WEIGHT:([\d\.]+)\]/i);
+      // 2. Weight Action
+      const weightMatch = lowerUserMsg.match(/(?:ζυγίζομαι|ζυγιζομαι|βάρος|βαρος|κιλά|κιλα|ειμαι|είμαι)\s*(\d{2,3}(?:[\.,]\d)?)\s*(?:kg|κιλα|κιλά)?/i);
       if (weightMatch) {
-        const w = parseFloat(weightMatch[1]);
-        if (!isNaN(w) && w > 0) {
+        const w = parseFloat(weightMatch[1].replace(',', '.'));
+        if (w >= 70 && w <= 160) {
           const todayStr = new Date().toISOString().split('T')[0];
           await DataService.addWeightLog({
             date: todayStr,
@@ -208,11 +195,43 @@ export function AiChatDrawer({
             pain_level: 4,
             notes: 'Καταγραφή από AI Coach',
           });
-          cleanMsg = cleanMsg.replace(weightMatch[0], '').trim();
           cleanMsg += `\n\n⚖️ Το νέο βάρος (${w}kg) καταχωρήθηκε!`;
+          actionExecuted = true;
           onDataChanged();
         }
       }
+
+      // 3. Food / Beverage Action
+      const isEatingOrDrink = /έφαγα|εφαγα|ήπια|ηπια|κατανάλωσα|καταναλωσα|φαγητό|φαγητο|πρωινό|πρωινο|μεσημεριανό|μεσημεριανο|βραδινό|βραδινο|σνακ|γεύμα|γευμα/i.test(lowerUserMsg) || isSugaryDrinkOrFood;
+      if (isEatingOrDrink && !actionExecuted) {
+        const gramMatch = lowerUserMsg.match(/(\d+)\s*(?:g|gr|γραμμάρια|γραμμαρια)/i);
+        const grams = gramMatch ? parseInt(gramMatch[1], 10) : 100;
+        const analysis = analyzeFoodDynamically(text);
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const entry: FoodLogEntry = {
+          id: 'fl-' + Date.now(),
+          foodId: analysis.id || ('food-' + Date.now()),
+          name: analysis.name || text.slice(0, 30),
+          quantity: grams,
+          calories: Math.round(analysis.calories * (grams / 100)),
+          protein: Math.round(analysis.protein * (grams / 100) * 10) / 10,
+          carbs: Math.round(analysis.carbs * (grams / 100) * 10) / 10,
+          fat: Math.round(analysis.fat * (grams / 100) * 10) / 10,
+          time: timeStr,
+        };
+
+        const updated = [...foodLogs, entry];
+        await DataService.saveFoodLogs(todayStr, updated);
+        cleanMsg += `\n\n✅ <b>Καταγράφηκε αυτόματα στο Dashboard:</b>\n• ${entry.name} (${entry.quantity}g) - ${entry.calories} kcal, ${entry.carbs}g υδατάνθρακες`;
+        onDataChanged();
+      }
+
+      // Scrub ANY leaked action tags
+      cleanMsg = cleanMsg
+        .replace(/\[\s*ACTION:[^\]]*\]?/gi, '')
+        .replace(/\[\s*ACTION:[^\n]*\n?/gi, '')
+        .trim();
 
       const aiMsg: AiChatMessage = {
         id: 'msg-ai-' + Date.now(),
