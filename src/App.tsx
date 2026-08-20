@@ -110,8 +110,9 @@ export function App() {
 
   // Selected Day for Menu (Defaults to TODAY)
   const [selectedDay, setSelectedDay] = useState<MealRecipe['day']>(currentDayName);
+  const [showKetoInfo, setShowKetoInfo] = useState<boolean>(false);
 
-  // Initial Load + Auto Sync every 4 seconds (for instant Telegram bot updates)
+  // Initial Load + Auto Sync every 4 seconds (for instant UI updates)
   const loadData = async () => {
     try {
       const todayStr = new Date().toISOString().split('T')[0];
@@ -888,6 +889,64 @@ export function App() {
               </div>
             );
           })()}
+
+          {/* Live Ketosis Status & Scientific Guide Card */}
+          <div className="rounded-xl border border-emerald-900/50 bg-gradient-to-r from-[#07130a] to-[#0a1017] p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${todayMacros.carbs <= SPIROS_TARGETS.carbs ? 'bg-emerald-400' : todayMacros.carbs <= 45 ? 'bg-amber-400' : 'bg-red-400'}`}></span>
+                  <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${todayMacros.carbs <= SPIROS_TARGETS.carbs ? 'bg-emerald-500' : todayMacros.carbs <= 45 ? 'bg-amber-500' : 'bg-red-500'}`}></span>
+                </span>
+                <span className="font-bold text-xs text-white">
+                  Κατάσταση Κέτωσης:
+                </span>
+                <span className={`text-xs font-extrabold ${todayMacros.carbs <= SPIROS_TARGETS.carbs ? 'text-emerald-400' : todayMacros.carbs <= 45 ? 'text-amber-400' : 'text-red-400'}`}>
+                  {todayMacros.carbs <= SPIROS_TARGETS.carbs ? '🔥 Ενεργή Κέτωση & Καύση Λίπους' : todayMacros.carbs <= 45 ? '⚡ Ήπια Κέτωση' : '⚠️ Εκτός Κέτωσης'}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowKetoInfo(!showKetoInfo)}
+                className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 underline transition flex items-center space-x-1"
+              >
+                <span>{showKetoInfo ? 'Απόκρυψη οδηγού ▲' : 'Πότε μπαίνεις & Σημάδια ▼'}</span>
+              </button>
+            </div>
+
+            <p className="text-[11px] text-neutral-300 leading-relaxed">
+              {todayMacros.carbs <= SPIROS_TARGETS.carbs ? (
+                <>Με <strong>{Math.round(todayMacros.carbs * 10) / 10}g υδατάνθρακες</strong> και 16:8 νηστεία, το σώμα καίει <strong>καθαρό αποθηκευμένο σωματικό λίπος</strong> για ενέργεια και προστατεύει τη μέση από φλεγμονές.</>
+              ) : (
+                <>Προσοχή: Οι υδατάνθρακες ξεπέρασαν τα 30g ({Math.round(todayMacros.carbs * 10) / 10}g). Περιόρισε το βραδινό σε καθαρή πρωτεΐνη και πράσινα λαχανικά για να επιστρέψεις άμεσα σε κέτωση.</>
+              )}
+            </p>
+
+            {/* Expandable Clinical Science Guide */}
+            {showKetoInfo && (
+              <div className="pt-2.5 border-t border-neutral-800 space-y-2 text-xs text-neutral-300">
+                <div className="p-2.5 rounded-lg bg-black/80 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-amber-400 text-[11px] block">⏱️ Πότε μπαίνει κάποιος σε Κέτωση;</span>
+                  <p className="text-[11px] text-neutral-300 leading-relaxed">
+                    • <strong>Με 16:8 Νηστεία + Keto (&lt;30g):</strong> Είσοδος σε <strong>24 έως 48 ώρες</strong> (η 16ωρη αποχή από φαγητό αδειάζει ταχύτατα τα αποθέματα γλυκογόνου στο συκώτι).<br/>
+                    • <strong>Χωρίς νηστεία (απλή δίαιτα):</strong> Χρειάζονται 3 έως 5 ημέρες.
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-black/80 border border-neutral-800 space-y-1.5">
+                  <span className="font-bold text-emerald-400 text-[11px] block">🔍 Πώς ξέρεις ότι είσαι σε Κέτωση (Τα 5 Κύρια Σημάδια):</span>
+                  <ul className="space-y-1 text-[11px] text-neutral-300 list-disc list-inside">
+                    <li><strong className="text-white">1. Μηδενισμός Λιγούρας & Πείνας:</strong> Οι κετόνες ρίχνουν την ορμόνη γκρελίνη, νιώθεις χορτάτος για πολλές ώρες.</li>
+                    <li><strong className="text-white">2. Διανοητική Διαύγεια & Ενέργεια:</strong> Σταθερή ενέργεια χωρίς απογευματινή υπνηλία ή «θολούρα» μετά το φαγητό.</li>
+                    <li><strong className="text-white">3. Δίψα & Ξηροστομία:</strong> Το σώμα αποβάλλει κατακρατήσεις υγρών (γι&apos; αυτό είναι απαραίτητα τα 3.0L νερό).</li>
+                    <li><strong className="text-white">4. Γρήγορη Αρχική Αποσυμπίεση:</strong> Άμεση μείωση φλεγμονής και πρηξίματος στη μέση.</li>
+                    <li><strong className="text-white">5. Χαρακτηριστική Αναπνοή (Keto breath):</strong> Ελαφρώς φρουτώδης οσμή από την αποβολή ακετόνης.</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Search Input */}
           <div className="relative">
