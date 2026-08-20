@@ -18,7 +18,7 @@ serve(async (req) => {
       throw new Error("Missing OPENAI_API_KEY in Supabase Edge Function secrets.");
     }
 
-    const { messages, model = "gpt-4o-mini", temperature = 0.7 } = await req.json();
+    const { messages, model = "gpt-4o-mini", temperature = 0.7, max_tokens = 1000 } = await req.json();
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -30,6 +30,7 @@ serve(async (req) => {
         model,
         messages,
         temperature,
+        max_tokens,
       }),
     });
 

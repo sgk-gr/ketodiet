@@ -4,7 +4,6 @@ import { WeightLog, FoodItem, MealRecipe, FoodLogEntry, DailyLog } from './types
 import { INITIAL_FOODS, INITIAL_WEIGHT_LOGS, INITIAL_MEAL_PLAN } from './data/initialData';
 import { SMART_FOOD_DB, SmartFood, searchSmartFoods } from './data/foodDatabase';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
-import { AiChatDrawer } from './components/AiChatDrawer';
 
 const DAY_NAMES: MealRecipe['day'][] = [
   'Κυριακή',
@@ -54,7 +53,6 @@ export function App() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [showInstallGuide, setShowInstallGuide] = useState<boolean>(false);
-  const [isAiChatOpen, setIsAiChatOpen] = useState<boolean>(false);
 
   // Check PWA Standalone & Listen for Install Prompt
   useEffect(() => {
@@ -346,14 +344,6 @@ export function App() {
           </div>
           
           <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setIsAiChatOpen(true)}
-              className="px-2.5 py-1 rounded-md bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-300 text-xs font-bold transition flex items-center space-x-1 shadow-sm"
-              title="Άνοιγμα AI Coach (GPT-4o-mini)"
-            >
-              <span>AI Coach</span>
-            </button>
-
             {!isInstalled && (
               <button
                 onClick={handleInstallClick}
@@ -1020,25 +1010,6 @@ export function App() {
         </div>
 
       </main>
-
-      {/* Floating AI Coach Trigger for Mobile */}
-      <button
-        onClick={() => setIsAiChatOpen(true)}
-        className="fixed bottom-5 right-5 z-40 px-3.5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-2xl border border-emerald-400 flex items-center space-x-1.5 transition active:scale-95"
-        title="Άνοιγμα AI Coach"
-      >
-        <span>💬 AI Coach</span>
-      </button>
-
-      {/* In-App AI Chat Drawer */}
-      <AiChatDrawer
-        isOpen={isAiChatOpen}
-        onClose={() => setIsAiChatOpen(false)}
-        onDataChanged={loadData}
-        currentWeight={latestWeight}
-        waterMl={waterMl}
-        foodLogs={foodLog}
-      />
 
     </div>
   );
