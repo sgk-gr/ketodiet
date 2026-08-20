@@ -1,0 +1,38 @@
+name: Spiros Telegram 24/7 Reminders Cron
+
+on:
+  schedule:
+    # 06:00 UTC = 09:00 Athens (Morning hydration & fasting check)
+    - cron: '0 6 * * *'
+    # 09:00 UTC = 12:00 Athens (Lunch window opening)
+    - cron: '0 9 * * *'
+    # 12:30 UTC = 15:30 Athens (Afternoon water & spine movement)
+    - cron: '30 12 * * *'
+    # 16:30 UTC = 19:30 Athens (Dinner warning before kitchen closes at 20:00)
+    - cron: '30 16 * * *'
+    # 18:30 UTC = 21:30 Athens (Daily macro & water review)
+    - cron: '30 18 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  send-telegram-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Execute Telegram Reminder
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8603311936:AAG1e-zxKzU48elsr-t7dGyvQCSfvt0E32g' }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '8162958857' }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://xrmvingehhiymchoggka.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhybXZpbmdlaGhpeW1jaG9nZ2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjkzMTEsImV4cCI6MjA5MDk0NTMxMX0.UDvGORYRXdo1IKTrduIJYJEfgNuli0LSpAC9njm7I9Q' }}
+        run: node scripts/send_reminder.js
