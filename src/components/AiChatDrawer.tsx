@@ -24,6 +24,7 @@ export function AiChatDrawer({
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load chat history from Supabase / local on mount
   useEffect(() => {
@@ -34,7 +35,7 @@ export function AiChatDrawer({
         const welcome: AiChatMessage = {
           id: 'welcome-init',
           sender: 'ai',
-          message: `👋 Γεια σου Σπύρο! Είμαι ο προσωπικός σου AI Health & Keto Coach (GPT-4o-mini).\n\nΓνωρίζω τα πάντα για το πλάνο σου:\n• Στόχος: 105kg ➔ 90kg (Τρέχον: ${currentWeight}kg)\n• Μέση: Στένωση Σπονδυλικού Σωλήνα (Προστασία, στατικό ποδήλατο, 3L νερό)\n• Διατροφή: Low-Carb 16:8\n\nΜίλα μου ελεύθερα σαν άνθρωπος για ό,τι έφαγες, για το νερό, για τη μέση ή για συμβουλές!`,
+          message: `👋 Γεια σου Σπύρο! Είμαι ο AI Health & Keto Coach σου (GPT-4o-mini).\n\n📸 Μπορείς να μου ανεβάσεις φωτογραφία από το πιάτο σου με το κουμπί 📸 για να το αναλύσω!\n\n💬 Ή γράψε μου ελεύθερα: «έφαγα 200g κοτόπουλο», «ήπια 500ml», «πόσο νερό έχω;» κτλ.`,
           created_at: new Date().toISOString(),
         };
         setMessages([welcome]);
@@ -51,6 +52,139 @@ export function AiChatDrawer({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
+
+  // Handle Photo Upload from In-App Chat
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64Data = reader.result as string;
+
+      // 1. Add user photo message to UI
+      const userMsg: AiChatMessage = {
+        id: 'msg-photo-' + Date.now(),
+        sender: 'user',
+        message: '📸 [Φωτογραφία Πιάτου]',
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      await DataService.saveAiChatMessage({ sender: 'user', message: '📸 [Φωτογραφία Πιάτου]' });
+
+      try {
+        const promptText = `Είσαι ο διατροφολόγος του Σπύρου (Keto 16:8, Στένωση Σπονδυλικού Σωλήνα).
+Ανάλυσε αυτή τη φωτογραφία πιάτου και απάντησε ΣΥΝΤΟΜΑ σε 2-3 γραμμές:
+1. Τι τρόφιμα βλέπεις και εκτίμηση γραμμαρίων.
+2. Αν κάνει για Keto (Ναι/Όχι) και γιατί σε 1 πρόταση.
+3. Θερμίδες & Macros επιγραμματικά.
+
+ΣΤΟ ΤΕΛΟΣ ΒΑΛΕ ΥΠΟΧΡΕΩΤΙΚΑ:
+[ACTION:LOG_FOOD:{"name":"Όνομα Πιάτου","grams":200,"calories":120,"protein":15,"carbs":4,"fat":3}]`;
+
+        const res = await fetch('https://xrmvingehhiymchoggka.supabase.co/functions/v1/openai-proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhybXZpbmdlaGhpeW1jaG9nZ2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjkzMTEsImV4cCI6MjA5MDk0NTMxMX0.UDvGORYRXdo1IKTrduIJYJEfgNuli0LSpAC9njm7I9Q'}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: promptText },
+                  { type: 'image_url', image_url: { url: base64Data } }
+                ]
+              }
+            ],
+            temperature: 0.3,
+            max_tokens: 450,
+          }),
+        });
+
+        let aiResponse = '';
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.content) aiResponse = data.content;
+          else if (data && data.choices?.[0]?.message?.content) aiResponse = data.choices[0].message.content;
+        }
+
+        if (!aiResponse) {
+          aiResponse = 'Βλέπω το πιάτο σου! Εστίασε σε καθαρή πρωτεΐνη και πράσινα λαχανικά.';
+        }
+
+        // Parse food and auto-log
+        const logTagMatch = aiResponse.match(/\[ACTION:LOG_FOOD:\s*(\{.*?\})\s*\]/is);
+        let foodToLog = null;
+        if (logTagMatch) {
+          try {
+            const parsed = JSON.parse(logTagMatch[1]);
+            if (parsed && parsed.name) {
+              foodToLog = {
+                id: 'fl-' + Date.now(),
+                foodId: 'food-ai-' + Date.now(),
+                name: parsed.name,
+                quantity: parsed.grams || 200,
+                calories: parsed.calories || 120,
+                protein: parsed.protein || 10,
+                carbs: parsed.carbs || 3,
+                fat: parsed.fat || 2,
+                time: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
+              };
+            }
+          } catch {}
+        }
+
+        if (!foodToLog) {
+          const gramMatch = aiResponse.match(/(\d{2,4})\s*(?:g|gr|γραμμ)/i);
+          const grams = gramMatch ? parseInt(gramMatch[1], 10) : 200;
+          const analysis = analyzeFoodDynamically(aiResponse);
+          foodToLog = {
+            id: 'fl-' + Date.now(),
+            foodId: analysis.id || ('food-' + Date.now()),
+            name: analysis.name || 'Πιάτο φαγητού',
+            quantity: grams,
+            calories: Math.round(analysis.calories * (grams / 100)) || 120,
+            protein: Math.round(analysis.protein * (grams / 100) * 10) / 10 || 10,
+            carbs: Math.round(analysis.carbs * (grams / 100) * 10) / 10 || 3,
+            fat: Math.round(analysis.fat * (grams / 100) * 10) / 10 || 2,
+            time: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
+          };
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const updated = [...foodLogs, foodToLog];
+        await DataService.saveFoodLogs(todayStr, updated);
+        onDataChanged();
+
+        let cleanMsg = aiResponse
+          .replace(/\[ACTION:[^\]]*\]/gi, '')
+          .replace(/^#+\s*(.*?)$/gm, '$1')
+          .replace(/#+/g, '')
+          .trim();
+
+        cleanMsg += `\n\n✅ <b>Καταγράφηκε στο Dashboard:</b>\n• ${foodToLog.name} (${foodToLog.quantity}g) - ${foodToLog.calories} kcal, ${foodToLog.carbs}g υδ/κες`;
+
+        const aiMsg: AiChatMessage = {
+          id: 'msg-ai-photo-' + Date.now(),
+          sender: 'ai',
+          message: cleanMsg,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        await DataService.saveAiChatMessage({ sender: 'ai', message: cleanMsg });
+      } catch (err: any) {
+        console.error('Vision analysis error:', err);
+      } finally {
+        setIsLoading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputText).trim();
@@ -161,6 +295,7 @@ export function AiChatDrawer({
         let ml = 250;
         const numMatch = lowerUserMsg.match(/(\d+)\s*(?:ml|λιτρα|λίτρα|l)?/i);
         if (lowerUserMsg.includes('1 λιτρο') || lowerUserMsg.includes('1 λίτρο') || lowerUserMsg.includes('1l')) ml = 1000;
+        else if (lowerUserMsg.includes('2 λιτρα') || lowerUserMsg.includes('2 λίτρα') || lowerUserMsg.includes('2l')) ml = 2000;
         else if (lowerUserMsg.includes('μισό λίτρο') || lowerUserMsg.includes('500ml')) ml = 500;
         else if (numMatch && numMatch[1]) ml = parseInt(numMatch[1], 10);
 
@@ -175,7 +310,7 @@ export function AiChatDrawer({
             exercise_minutes: 20,
             exercise_type: 'recumbent_bike',
             lumbar_feeling: 'good',
-            completed_habits: [],
+            completed_habits: foodLogs,
           });
           cleanMsg += `\n\n💧 Σύνολο νερού: ${newWater}ml / 3000ml`;
           actionExecuted = true;
@@ -334,6 +469,13 @@ export function AiChatDrawer({
 
         {/* Input Bar */}
         <div className="p-3 border-t border-neutral-800 bg-black">
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={handlePhotoSelected}
+          />
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -341,6 +483,15 @@ export function AiChatDrawer({
             }}
             className="flex items-center space-x-2"
           >
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 text-sm transition"
+              title="Ανέβασε φωτογραφία πιάτου για ανάλυση"
+            >
+              📸
+            </button>
             <input
               type="text"
               value={inputText}

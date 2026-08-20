@@ -4,6 +4,7 @@ import { WeightLog, FoodItem, MealRecipe, FoodLogEntry, DailyLog } from './types
 import { INITIAL_FOODS, INITIAL_WEIGHT_LOGS, INITIAL_MEAL_PLAN } from './data/initialData';
 import { SMART_FOOD_DB, SmartFood, searchSmartFoods } from './data/foodDatabase';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
+import { AiChatDrawer } from './components/AiChatDrawer';
 
 const DAY_NAMES: MealRecipe['day'][] = [
   'Κυριακή',
@@ -53,6 +54,7 @@ export function App() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [showInstallGuide, setShowInstallGuide] = useState<boolean>(false);
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
 
   // Check PWA Standalone & Listen for Install Prompt
   useEffect(() => {
@@ -216,7 +218,7 @@ export function App() {
       exercise_minutes: 20,
       exercise_type: 'recumbent_bike',
       lumbar_feeling: 'good',
-      completed_habits: [],
+      completed_habits: foodLog,
     });
   };
 
@@ -233,7 +235,7 @@ export function App() {
       exercise_minutes: 20,
       exercise_type: 'recumbent_bike',
       lumbar_feeling: 'good',
-      completed_habits: [],
+      completed_habits: foodLog,
     });
   };
 
@@ -249,7 +251,7 @@ export function App() {
       exercise_minutes: 20,
       exercise_type: 'recumbent_bike',
       lumbar_feeling: 'good',
-      completed_habits: [],
+      completed_habits: foodLog,
     });
   };
 
@@ -344,6 +346,15 @@ export function App() {
           </div>
           
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow"
+              title="Άνοιγμα AI Coach & Ανάλυσης"
+            >
+              <span>💬</span>
+              <span>AI Coach</span>
+            </button>
+
             {!isInstalled && (
               <button
                 onClick={handleInstallClick}
@@ -1010,6 +1021,26 @@ export function App() {
         </div>
 
       </main>
+
+      {/* Floating AI Coach Button */}
+      <button
+        onClick={() => setIsChatOpen(true)}
+        className="fixed bottom-5 right-5 z-40 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-full shadow-2xl flex items-center space-x-2 border border-emerald-400/30 transition transform hover:scale-105 active:scale-95"
+        title="Άνοιγμα AI Coach & Ανάλυσης"
+      >
+        <span className="text-base">💬</span>
+        <span>AI Coach</span>
+      </button>
+
+      {/* AI Chat Drawer */}
+      <AiChatDrawer
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        onDataChanged={loadData}
+        currentWeight={latestWeight}
+        waterMl={waterMl}
+        foodLogs={foodLog}
+      />
 
     </div>
   );

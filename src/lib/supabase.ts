@@ -204,11 +204,33 @@ export const DataService = {
 
   async saveDailyLog(log: DailyLog): Promise<void> {
     try {
+      const { data: existing } = await supabase
+        .from('spiros_daily_logs')
+        .select('*')
+        .eq('date', log.date)
+        .single();
+
+      const merged = {
+        id: existing?.id || log.id || 'daily-' + log.date,
+        date: log.date,
+        water_ml: typeof log.water_ml === 'number' ? log.water_ml : (existing?.water_ml ?? 0),
+        fasting_hours: log.fasting_hours ?? existing?.fasting_hours ?? 16,
+        exercise_minutes: log.exercise_minutes ?? existing?.exercise_minutes ?? 20,
+        exercise_type: log.exercise_type ?? existing?.exercise_type ?? 'recumbent_bike',
+        lumbar_feeling: log.lumbar_feeling ?? existing?.lumbar_feeling ?? 'good',
+        completed_habits: Array.isArray(log.completed_habits) && log.completed_habits.length > 0
+          ? log.completed_habits
+          : (existing?.completed_habits || []),
+        notes: log.notes ?? existing?.notes ?? 'Καλή ενέργεια και καμία ενόχληση στη μέση.',
+      };
+
       await supabase
         .from('spiros_daily_logs')
-        .upsert([log], { onConflict: 'date' });
-    } catch {}
-    localStorage.setItem(STORAGE_KEYS.DAILY + '_' + log.date, JSON.stringify(log));
+        .upsert([merged], { onConflict: 'date' });
+      localStorage.setItem(STORAGE_KEYS.DAILY + '_' + log.date, JSON.stringify(merged));
+    } catch {
+      localStorage.setItem(STORAGE_KEYS.DAILY + '_' + log.date, JSON.stringify(log));
+    }
   },
 
   // --- FOOD LOGS (spiros_daily_logs.completed_habits in Supabase) ---
