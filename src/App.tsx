@@ -187,6 +187,15 @@ export function App() {
     fat: acc.fat + e.fat,
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
+  // Personalized Daily Targets for Spiros (180cm, 105kg -> 90kg, Keto 16:8, Spinal Stenosis)
+  const SPIROS_TARGETS = {
+    calories: 1850,
+    protein: 130, // 130g for spine core muscle protection & satiety
+    carbs: 30,    // 30g strict Keto limit for anti-inflammatory state
+    fat: 125,     // 125g healthy fats
+    water: 3000   // 3000ml disc hydration
+  };
+
   // Unlimited Smart Food Search (Curated 150+ DB + Dynamic AI Analyzer)
   const smartResults = searchSmartFoods(searchFood);
 
@@ -791,41 +800,90 @@ export function App() {
             <p className="text-xs text-neutral-400">Γράψε κάτι για να δεις αν κάνει, και πάτα «Καταγραφή» για να το προσθέσεις</p>
           </div>
 
-          {/* Daily Macro Summary Bar */}
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-              <div className="text-lg font-bold text-amber-400">{todayMacros.calories}</div>
-              <div className="text-[10px] text-neutral-500">θερμίδες</div>
+          {/* Daily Macro Summary Bar with Personalized Targets */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+            {/* Calories */}
+            <div className="p-2.5 rounded-xl bg-black border border-neutral-800 flex flex-col justify-between">
+              <div className="text-sm sm:text-base font-bold text-amber-400">
+                {todayMacros.calories} <span className="text-[11px] text-neutral-500 font-normal">/ {SPIROS_TARGETS.calories}</span>
+              </div>
+              <div className="text-[10px] text-neutral-400 font-medium mt-0.5">θερμίδες (kcal)</div>
+              <div className="w-full bg-neutral-900 rounded-full h-1.5 mt-2 overflow-hidden border border-neutral-800">
+                <div 
+                  className="bg-amber-400 h-full rounded-full transition-all" 
+                  style={{ width: `${Math.min(100, (todayMacros.calories / SPIROS_TARGETS.calories) * 100)}%` }}
+                />
+              </div>
             </div>
-            <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-              <div className="text-lg font-bold text-emerald-400">{Math.round(todayMacros.protein * 10) / 10}g</div>
-              <div className="text-[10px] text-neutral-500">πρωτεΐνη</div>
+
+            {/* Protein */}
+            <div className="p-2.5 rounded-xl bg-black border border-neutral-800 flex flex-col justify-between">
+              <div className="text-sm sm:text-base font-bold text-emerald-400">
+                {Math.round(todayMacros.protein * 10) / 10}g <span className="text-[11px] text-neutral-500 font-normal">/ {SPIROS_TARGETS.protein}g</span>
+              </div>
+              <div className="text-[10px] text-neutral-400 font-medium mt-0.5">πρωτεΐνη (στόχος)</div>
+              <div className="w-full bg-neutral-900 rounded-full h-1.5 mt-2 overflow-hidden border border-neutral-800">
+                <div 
+                  className="bg-emerald-400 h-full rounded-full transition-all" 
+                  style={{ width: `${Math.min(100, (todayMacros.protein / SPIROS_TARGETS.protein) * 100)}%` }}
+                />
+              </div>
             </div>
-            <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-              <div className={`text-lg font-bold ${todayMacros.carbs > 50 ? 'text-red-400' : todayMacros.carbs > 30 ? 'text-amber-400' : 'text-emerald-400'}`}>{Math.round(todayMacros.carbs * 10) / 10}g</div>
-              <div className="text-[10px] text-neutral-500">υδατάνθρακες</div>
+
+            {/* Carbs */}
+            <div className={`p-2.5 rounded-xl bg-black border ${todayMacros.carbs > SPIROS_TARGETS.carbs ? 'border-red-800/80 bg-red-950/20' : 'border-neutral-800'} flex flex-col justify-between`}>
+              <div className={`text-sm sm:text-base font-bold ${todayMacros.carbs > SPIROS_TARGETS.carbs ? 'text-red-400' : todayMacros.carbs > 20 ? 'text-amber-400' : 'text-sky-400'}`}>
+                {Math.round(todayMacros.carbs * 10) / 10}g <span className="text-[11px] text-neutral-500 font-normal">/ {SPIROS_TARGETS.carbs}g</span>
+              </div>
+              <div className="text-[10px] text-neutral-400 font-medium mt-0.5">υδατάνθρακες (όριο)</div>
+              <div className="w-full bg-neutral-900 rounded-full h-1.5 mt-2 overflow-hidden border border-neutral-800">
+                <div 
+                  className={`h-full rounded-full transition-all ${todayMacros.carbs > SPIROS_TARGETS.carbs ? 'bg-red-500' : todayMacros.carbs > 20 ? 'bg-amber-400' : 'bg-sky-400'}`} 
+                  style={{ width: `${Math.min(100, (todayMacros.carbs / SPIROS_TARGETS.carbs) * 100)}%` }}
+                />
+              </div>
             </div>
-            <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
-              <div className="text-lg font-bold text-neutral-300">{Math.round(todayMacros.fat * 10) / 10}g</div>
-              <div className="text-[10px] text-neutral-500">λίπος</div>
+
+            {/* Fat */}
+            <div className="p-2.5 rounded-xl bg-black border border-neutral-800 flex flex-col justify-between">
+              <div className="text-sm sm:text-base font-bold text-neutral-200">
+                {Math.round(todayMacros.fat * 10) / 10}g <span className="text-[11px] text-neutral-500 font-normal">/ {SPIROS_TARGETS.fat}g</span>
+              </div>
+              <div className="text-[10px] text-neutral-400 font-medium mt-0.5">λίπος (keto ενέργεια)</div>
+              <div className="w-full bg-neutral-900 rounded-full h-1.5 mt-2 overflow-hidden border border-neutral-800">
+                <div 
+                  className="bg-neutral-400 h-full rounded-full transition-all" 
+                  style={{ width: `${Math.min(100, (todayMacros.fat / SPIROS_TARGETS.fat) * 100)}%` }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Carb Budget Bar */}
+          {/* Personalized Keto Carb Budget Bar */}
           {(() => {
-            const carbLimit = 50; // keto daily carb limit
+            const carbLimit = SPIROS_TARGETS.carbs;
             const carbPct = Math.min((todayMacros.carbs / carbLimit) * 100, 100);
-            const barColor = todayMacros.carbs > 50 ? 'bg-red-500' : todayMacros.carbs > 35 ? 'bg-amber-500' : 'bg-emerald-500';
+            const isExceeded = todayMacros.carbs > carbLimit;
+            const isNearLimit = todayMacros.carbs > 20 && !isExceeded;
+            const barColor = isExceeded ? 'bg-red-500' : isNearLimit ? 'bg-amber-400' : 'bg-emerald-500';
+            const statusText = isExceeded
+              ? `Υπέρβαση κατά ${(todayMacros.carbs - carbLimit).toFixed(1)}g!`
+              : isNearLimit
+              ? `Απομένουν ${(carbLimit - todayMacros.carbs).toFixed(1)}g`
+              : `Άριστα σε Κέτωση (Απομένουν ${(carbLimit - todayMacros.carbs).toFixed(1)}g)`;
+
             return (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-neutral-400">Όριο υδατανθράκων (keto): {Math.round(todayMacros.carbs)}/{carbLimit}g</span>
-                  <span className={todayMacros.carbs > 50 ? 'text-red-400 font-bold' : todayMacros.carbs > 35 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
-                    {todayMacros.carbs > 50 ? 'Ξεπέρασες!' : todayMacros.carbs > 35 ? 'Προσοχή' : 'Καλά πας!'}
+              <div className="space-y-1.5 p-2.5 rounded-xl bg-black/60 border border-neutral-800/80">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-300 font-medium text-[11px] sm:text-xs">
+                    Όριο υδατανθράκων Σπύρου (Keto): <strong className="text-white font-mono">{Math.round(todayMacros.carbs * 10) / 10}</strong> / <span className="text-neutral-400 font-mono">{carbLimit}g</span>
+                  </span>
+                  <span className={`font-bold text-[11px] ${isExceeded ? 'text-red-400' : isNearLimit ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {statusText}
                   </span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-neutral-900 overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${carbPct}%` }}></div>
+                <div className="w-full h-2 rounded-full bg-neutral-900 overflow-hidden border border-neutral-800">
+                  <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${Math.max(4, carbPct)}%` }}></div>
                 </div>
               </div>
             );
