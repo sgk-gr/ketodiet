@@ -45,7 +45,7 @@ function saveSubscriber(chatId) {
   }
 }
 
-// Send Message Helper
+// Send Message Helper with HTML formatting and plain text fallback
 async function sendMessage(chatId, text) {
   try {
     const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
@@ -54,11 +54,22 @@ async function sendMessage(chatId, text) {
       body: JSON.stringify({
         chat_id: chatId,
         text,
+        parse_mode: 'HTML',
       }),
     });
     const json = await res.json();
     if (!json.ok) {
-      console.error('[Telegram Bot] Send message API error:', json);
+      // If HTML parsing failed due to AI special characters, send as plain text
+      const cleanText = text.replace(/<[^>]*>/g, '');
+      const retryRes = await fetch(`${TELEGRAM_API}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: cleanText,
+        }),
+      });
+      return await retryRes.json();
     }
     return json;
   } catch (err) {
