@@ -746,18 +746,40 @@ function startScheduler() {
     // 12:00 - Lunch Window Opening
     if (hour === 12 && minute === 0 && !sentRemindersToday.has(`${todayStr}-12:00`)) {
       sentRemindersToday.add(`${todayStr}-12:00`);
+      const water = await getTodayWater();
       for (const chatId of subscribers) {
-        const text = `🍽️ <b>Άνοιξε το παράθυρο φαγητού (12:00 - 20:00)!</b>\n\nΏρα για το μεσημεριανό σου.\n• Στείλε μου <b>φωτογραφία του πιάτου σου</b> 📸 ή γράψε μου τι έφαγες.\n• Εστίασε σε καθαρή πρωτεΐνη + πράσινη σαλάτα. Μηδέν ψωμί/υδατάνθρακες.`;
+        const text = `🍽️ Άνοιξε το παράθυρο φαγητού (12:00-20:00)!\n\nΏρα για το 1ο γεύμα. Στείλε μου φωτογραφία του πιάτου σου 📸 ή γράψε τι έφαγες.\nΚαθαρή πρωτεΐνη + σαλάτα, μηδέν ψωμί.\n\n💧 Νερό: ${water}ml / 3000ml`;
         await sendMessage(chatId, text);
       }
     }
 
-    // 15:30 - Afternoon Water & Lumbar Movement
+    // WATER REMINDERS - Every 2 hours throughout the day
+    const waterReminderHours = [10, 13, 16, 18, 20];
+    if (waterReminderHours.includes(hour) && minute === 0 && !sentRemindersToday.has(`${todayStr}-water-${hour}`)) {
+      sentRemindersToday.add(`${todayStr}-water-${hour}`);
+      const water = await getTodayWater();
+      if (water < 3000) {
+        const remaining = 3000 - water;
+        const glasses = Math.ceil(remaining / 250);
+        const messages = [
+          `💧 Σπύρο πιες νερό! Είσαι στα ${water}ml/3000ml. Λείπουν ${remaining}ml (~${glasses} ποτήρια).`,
+          `💧 Νερό check! ${water}ml/3000ml μέχρι τώρα. Πιες ένα ποτήρι για τη μέση σου!`,
+          `💧 Υπενθύμιση νερού: ${water}ml/3000ml. Οι δίσκοι θέλουν ενυδάτωση, πιες 250-500ml!`,
+          `💧 Πιες νεράκι! ${water}ml/3000ml. Ακόμα ${remaining}ml για τον στόχο σου.`,
+          `💧 Water time! ${water}ml/3000ml. Πάμε ένα ακόμα ποτήρι Σπύρο!`,
+        ];
+        const msg = messages[hour % messages.length];
+        for (const chatId of subscribers) {
+          await sendMessage(chatId, msg);
+        }
+      }
+    }
+
+    // 15:30 - Afternoon Movement Reminder
     if (hour === 15 && minute === 30 && !sentRemindersToday.has(`${todayStr}-15:30`)) {
       sentRemindersToday.add(`${todayStr}-15:30`);
-      const water = await getTodayWater();
       for (const chatId of subscribers) {
-        const text = `🚴 <b>Απογευματινό Check Σπύρο!</b>\n\n• Νερό: <b>${water}ml / 3000ml</b>\n• <b>Κίνηση για τη μέση:</b> 15-20 λεπτά στατικό ποδήλατο με πλάτη ή περπάτημα σε ίσιο έδαφος.\n\n(Πιες άλλο ένα ποτήρι νερό και γράψε μου: <code>ήπια 300ml</code>)`;
+        const text = `🚴 Ώρα για κίνηση Σπύρο! 15-20 λεπτά στατικό ποδήλατο ή περπάτημα σε ίσιο. Η μέση σου θα σε ευχαριστήσει!`;
         await sendMessage(chatId, text);
       }
     }
@@ -766,7 +788,7 @@ function startScheduler() {
     if (hour === 19 && minute === 30 && !sentRemindersToday.has(`${todayStr}-19:30`)) {
       sentRemindersToday.add(`${todayStr}-19:30`);
       for (const chatId of subscribers) {
-        const text = `⏰ <b>Πλησιάζει το κλείσιμο της κουζίνας (20:00)!</b>\n\nΒγάλε <b>φωτογραφία το βραδινό σου πιάτο</b> 📸 ή γράψε μου τι έφαγες για να κλείσουμε τα σημερινά macros!\nΑπό τις 20:00 ξεκινάει η 16ωρη νυχτερινή νηστεία.`;
+        const text = `⏰ Σπύρο, η κουζίνα κλείνει στις 20:00! Στείλε μου φωτογραφία του πιάτου σου 📸 ή γράψε τι τρως. Μετά ξεκινάει η 16ωρη νηστεία.`;
         await sendMessage(chatId, text);
       }
     }
@@ -783,7 +805,7 @@ function startScheduler() {
       }), { calories: 0, protein: 0, carbs: 0 });
 
       for (const chatId of subscribers) {
-        const text = `🌙 <b>Απολογισμός Ημέρας Σπύρο!</b>\n\n• Νερό: <b>${water}ml / 3000ml</b>\n• Θερμίδες: <b>${todayMacros.calories} kcal</b>\n• Πρωτεΐνη: <b>${todayMacros.protein}g</b>\n• Υδατάνθρακες: <b>${todayMacros.carbs}g</b>\n\nΚαλή ξεκούραση στη μέση σου!`;
+        const text = `🌙 Απολογισμός ημέρας Σπύρο!\n\nΝερό: ${water}ml/3000ml\nΘερμίδες: ${todayMacros.calories} kcal | P: ${todayMacros.protein}g | C: ${todayMacros.carbs}g\n\nΚαλή ξεκούραση!`;
         await sendMessage(chatId, text);
       }
     }
